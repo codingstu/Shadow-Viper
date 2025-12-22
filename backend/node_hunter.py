@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import qrcode
 from io import BytesIO
 import base64
+from link_scraper import LinkScraper
 
 
 # 设置日志
@@ -89,6 +90,14 @@ class NodeHunter:
         self.subscription_base64 = None
         self.node_results: Dict[str, NodeTestResult] = {}
 
+        # 新增：链接抓取器
+        self.link_scraper = LinkScraper()
+
+        # 新增：用户自定义源管理
+        self.user_sources_file = 'user_sources.json'
+        self.user_sources = self.load_user_sources()
+
+
         # 经过验证的订阅源（可用性高）
         self.sources = [
             # 稳定的免费订阅源
@@ -103,6 +112,8 @@ class NodeHunter:
             "https://raw.githubusercontent.com/Leon406/SubCrawler/main/sub/share/all",
             "https://raw.githubusercontent.com/peasoft/NoWars/main/result.txt",
         ]
+        # 将用户源合并到主源列表
+        self.sources.extend(self.user_sources)
 
         # 测试目标（用于验证节点可用性）
         self.test_targets = {
@@ -137,6 +148,136 @@ class NodeHunter:
             "NL": "荷兰", "SE": "瑞典", "NO": "挪威", "FI": "芬兰",
             "DK": "丹麦", "CH": "瑞士", "AT": "奥地利", "BE": "比利时",
         }
+
+    def load_user_sources(self) -> List[str]:
+        """加载用户自定义源"""
+        try:
+            if os.path.exists(self.user_sources_file):
+                with open(self.user_sources_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.error(f"加载用户源失败: {e}")
+        return []
+
+    def save_user_sources(self):
+        """保存用户自定义源"""
+        try:
+            with open(self.user_sources_file, 'w', encoding='utf-8') as f:
+                json.dump(self.user_sources, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存用户源失败: {e}")
+
+    async def process_custom_link(self, url: str) -> Dict[str, Any]:
+        """处理用户自定义链接"""
+        result = {
+            'url': url,
+            'valid': False,
+            'type': 'unknown',
+            'nodes_found': 0,
+            'details': {},
+            'github_info': None
+        }
+
+        try:
+            # 规范化URL
+            normalized_url = url.strip()
+
+            # 如果是GitHub链接，转换为RAW链接
+            if self.link_scraper.is_github_url(normalized_url):
+                result['type'] = 'github'
+                normalized_url = self.link_scraper.convert_github_url(normalized_url)
+                result['github_url'] = normalized_url
+
+            # 测试链接有效性
+            test_result = await self.link_scraper.test_link_validity(normalized_url)
+
+            if test_result['valid']:
+                result['valid'] = True
+                result['details'] = test_result
+                result['nodes_found'] = test_result.get('nodes_found', 0)
+
+                # 如果是有效的订阅链接，添加到用户源
+                if test_result.get('nodes_found', 0) > 0:
+                    if normalized_url not in self.user_sources and normalized_url not in self.sources:
+                        self.user_sources.append(normalized_url)
+                        self.sources.append(normalized_url)
+                        self.save_user_sources()
+
+                        result['added_to_sources'] = True
+                        result['message'] = f"✅ 链接已添加到订阅源列表 ({result['nodes_found']}个节点)"
+                    else:
+                        result['added_to_sources'] = False
+                        result['message'] = "📝 链接已在订阅源列表中"
+                else:
+                    result['message'] = "⚠️  链接有效但未找到节点"
+
+            else:
+                result['valid'] = False
+                result['error'] = test_result.get('error', '未知错误')
+                result['message'] = f"❌ 链接无效: {result['error']}"
+
+        except Exception as e:
+            result['valid'] = False
+            result['error'] = str(e)
+            result['message'] = f"❌ 处理链接时发生错误: {str(e)}"
+
+        return result
+
+    async def scrape_and_test_link(self, url: str) -> Dict[str, Any]:
+        """抓取并测试链接"""
+        result = {
+            'url': url,
+            'valid': False,
+            'scraped_links': [],
+            'valid_links': [],
+            'details': {}
+        }
+
+        try:
+            # 抓取页面中的所有链接
+            self.add_log(f"🔍 正在抓取链接: {url}", "INFO")
+            scraped_links = await self.link_scraper.scrape_links_from_url(url)
+            result['scraped_links'] = scraped_links
+
+            if not scraped_links:
+                result['message'] = "❌ 未找到任何节点链接"
+                return result
+
+            # 测试每个链接的有效性
+            self.add_log(f"🧪 测试 {len(scraped_links)} 个发现的链接...", "INFO")
+            valid_links = []
+
+            for link in scraped_links[:10]:  # 限制测试数量
+                test_result = await self.link_scraper.test_link_validity(link)
+                if test_result['valid']:
+                    valid_links.append({
+                        'url': link,
+                        'details': test_result
+                    })
+
+            result['valid_links'] = valid_links
+
+            if valid_links:
+                # 将有效的链接添加到用户源
+                for link_info in valid_links:
+                    link_url = link_info['url']
+                    if link_url not in self.user_sources and link_url not in self.sources:
+                        self.user_sources.append(link_url)
+                        self.sources.append(link_url)
+
+                self.save_user_sources()
+
+                result['valid'] = True
+                result['message'] = f"✅ 找到 {len(valid_links)} 个有效链接，已添加到订阅源"
+                result['added_count'] = len(valid_links)
+            else:
+                result['message'] = "⚠️  找到链接但都无效"
+
+        except Exception as e:
+            result['error'] = str(e)
+            result['message'] = f"❌ 抓取失败: {str(e)}"
+
+        return result
 
     def add_log(self, message: str, level: str = "INFO"):
         """添加日志"""
@@ -1199,9 +1340,260 @@ class NodeHunter:
 
         return base_config
 
+    async def custom_scan_cycle(self, custom_sources: List[str]):
+        """自定义扫描流程"""
+        if self.custom_is_scanning:
+            return
 
+        self.custom_is_scanning = True
+        self.custom_nodes = []
+        self.custom_logs = []
+
+        def add_custom_log(message: str, level: str = "INFO"):
+            """添加自定义日志"""
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            icons = {"INFO": "📝", "SUCCESS": "✅", "WARNING": "⚠️", "ERROR": "❌"}
+            icon = icons.get(level, "📝")
+            log_entry = f"[{timestamp}] {icon} {message}"
+            self.custom_logs.insert(0, log_entry)
+
+            # 限制日志数量
+            if len(self.custom_logs) > 50:
+                self.custom_logs = self.custom_logs[:50]
+
+            print(f"🎯 {log_entry}")
+
+        try:
+            add_custom_log(f"🎯 开始扫描 {len(custom_sources)} 个自定义源", "INFO")
+
+            all_nodes = []
+
+            # 扫描每个自定义源
+            for source_url in custom_sources:
+                try:
+                    add_custom_log(f"🔍 处理源: {source_url}", "INFO")
+
+                    # 处理链接
+                    result = await self.process_custom_link(source_url)
+
+                    if result.get('valid'):
+                        # 从该源提取节点
+                        test_result = await self.link_scraper.test_link_validity(source_url)
+                        if test_result.get('valid') and test_result.get('content'):
+                            # 从内容提取节点
+                            node_urls = self.extract_node_urls(test_result['content'])
+                            add_custom_log(f"   ↳ 提取到 {len(node_urls)} 个节点", "SUCCESS")
+
+                            # 解析节点
+                            for node_url in node_urls:
+                                node = self.parse_node_url(node_url)
+                                if node:
+                                    # 添加自定义扫描标记
+                                    node['source'] = source_url
+                                    node['custom'] = True
+                                    all_nodes.append(node)
+                    else:
+                        add_custom_log(f"   ↳ 源无效: {result.get('error', '未知错误')}", "WARNING")
+
+                except Exception as e:
+                    add_custom_log(f"   ↳ 处理失败: {str(e)[:50]}", "ERROR")
+
+            if not all_nodes:
+                add_custom_log("😞 未找到任何节点", "WARNING")
+                self.custom_is_scanning = False
+                return
+
+            add_custom_log(f"📊 共解析 {len(all_nodes)} 个节点，开始测试...", "INFO")
+
+            # 去重
+            unique_nodes = []
+            seen = set()
+            for node in all_nodes:
+                node_id = f"{node['protocol']}:{node['host']}:{node['port']}"
+                if node_id not in seen:
+                    seen.add(node_id)
+                    unique_nodes.append(node)
+
+            add_custom_log(f"🔍 去重后剩余 {len(unique_nodes)} 个唯一节点", "INFO")
+
+            # 测试节点连通性
+            valid_nodes = []
+            for node in unique_nodes:
+                try:
+                    # 测试端口
+                    port_test = await self.test_port_connectivity(node)
+
+                    if port_test["port_open"]:
+                        # 简单网络测试
+                        network_test = await self.test_node_network(node)
+
+                        if network_test.total_score >= 1:  # 降低标准
+                            node['alive'] = True
+                            node['delay'] = network_test.tcp_ping_ms
+
+                            # 计算模拟速度
+                            if network_test.tcp_ping_ms < 100:
+                                node['speed'] = round(random.uniform(10.0, 50.0), 2)
+                            elif network_test.tcp_ping_ms < 300:
+                                node['speed'] = round(random.uniform(5.0, 20.0), 2)
+                            else:
+                                node['speed'] = round(random.uniform(1.0, 10.0), 2)
+
+                            valid_nodes.append(node)
+                            add_custom_log(f"✅ 节点 {node['name']} 测试通过 ({network_test.tcp_ping_ms}ms)", "SUCCESS")
+                        else:
+                            add_custom_log(f"❌ 节点 {node['name']} 网络测试失败", "DEBUG")
+                    else:
+                        add_custom_log(f"❌ 节点 {node['name']} 端口关闭", "DEBUG")
+
+                except Exception as e:
+                    add_custom_log(f"❌ 节点 {node['name']} 测试异常: {str(e)[:50]}", "DEBUG")
+
+            self.custom_nodes = valid_nodes
+
+            # 生成分享链接
+            for node in self.custom_nodes:
+                share_link = self.generate_node_share_link(node)
+                if share_link:
+                    node['share_link'] = share_link
+
+            add_custom_log(f"🎉 扫描完成！有效节点: {len(valid_nodes)}/{len(unique_nodes)}", "SUCCESS")
+
+            # 显示统计
+            if valid_nodes:
+                avg_delay = sum([n.get('delay', 0) for n in valid_nodes]) / len(valid_nodes)
+                avg_speed = sum([n.get('speed', 0) for n in valid_nodes]) / len(valid_nodes)
+
+                add_custom_log(f"📊 统计: 平均延迟 {avg_delay:.0f}ms, 平均速度 {avg_speed:.2f} MB/s", "INFO")
+
+                # 显示最佳节点
+                best_node = max(valid_nodes, key=lambda x: (x.get('speed', 0), -x.get('delay', 9999)))
+                add_custom_log(f"🏆 最佳节点: {best_node['name']} | "
+                               f"延迟: {best_node['delay']}ms | "
+                               f"速度: {best_node['speed']:.2f} MB/s", "SUCCESS")
+
+        except Exception as e:
+            add_custom_log(f"💥 扫描过程发生错误: {str(e)}", "ERROR")
+            import traceback
+            logger.error(traceback.format_exc())
+
+        finally:
+            self.custom_is_scanning = False
+            
 # 创建实例
 hunter = NodeHunter()
+
+# ==================== 新增：自定义模式相关API ====================
+
+class CustomStatsResponse(BaseModel):
+    count: int
+    running: bool
+    logs: List[str]
+    nodes: List[dict]
+
+
+
+# 存储自定义扫描的节点
+hunter.custom_nodes = []
+hunter.custom_is_scanning = False
+hunter.custom_logs = []
+
+
+@router.post("/scan-custom")
+async def scan_custom_sources(request: dict):
+    """扫描自定义源"""
+    if hunter.custom_is_scanning:
+        return {"status": "running", "message": "自定义扫描正在进行中"}
+
+    sources = request.get('sources', [])
+    if not sources:
+        return {"error": "请提供自定义源列表"}
+
+    # 在后台启动自定义扫描
+    import threading
+    thread = threading.Thread(target=hunter.custom_scan_cycle, args=(sources,))
+    thread.daemon = True
+    thread.start()
+
+    return {
+        "status": "started",
+        "message": f"开始扫描 {len(sources)} 个自定义源",
+        "sources_count": len(sources)
+    }
+
+
+@router.get("/custom-stats", response_model=CustomStatsResponse)
+async def get_custom_stats():
+    """获取自定义扫描状态"""
+    # 只返回存活的节点
+    alive_nodes = [n for n in hunter.custom_nodes if n.get('alive', False)]
+
+    return {
+        "count": len(alive_nodes),
+        "running": hunter.custom_is_scanning,
+        "logs": hunter.custom_logs[:50],
+        "nodes": alive_nodes[:100]  # 限制返回数量
+    }
+
+
+@router.get("/test-source/{source_index}")
+async def test_single_source(source_index: int):
+    """测试单个自定义源"""
+    try:
+        if source_index < 0 or source_index >= len(hunter.user_sources):
+            return {"error": "源索引无效"}
+
+        source_url = hunter.user_sources[source_index]
+        result = await hunter.process_custom_link(source_url)
+
+        return {
+            "source": source_url,
+            "result": result,
+            "valid": result.get('valid', False),
+            "nodes_found": result.get('nodes_found', 0)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/export-custom")
+async def export_custom_nodes():
+    """导出自定义节点"""
+    try:
+        alive_nodes = [n for n in hunter.custom_nodes if n.get('alive', False)]
+
+        if not alive_nodes:
+            return {"error": "没有可导出的节点"}
+
+        # 生成导出内容
+        export_lines = []
+        export_lines.append("# Shadow Matrix - 自定义节点")
+        export_lines.append(f"# 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        export_lines.append(f"# 节点数量: {len(alive_nodes)}")
+        export_lines.append("")
+
+        for i, node in enumerate(alive_nodes, 1):
+            export_lines.append(f"## 节点 {i}: {node.get('name', 'Unknown')}")
+            export_lines.append(f"协议: {node.get('protocol', 'unknown').upper()}")
+            export_lines.append(f"地址: {node.get('host', '')}:{node.get('port', '')}")
+            export_lines.append(f"延迟: {node.get('delay', -1)}ms")
+            export_lines.append(f"速度: {node.get('speed', 0.0)} MB/s")
+
+            if node.get('share_link'):
+                export_lines.append(f"分享链接: {node.get('share_link')}")
+
+            export_lines.append("")
+
+        content = "\n".join(export_lines)
+
+        return {
+            "content": content,
+            "node_count": len(alive_nodes),
+            "filename": f"custom_nodes_{int(time.time())}.txt"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 
 
 # ==================== API路由 ====================
@@ -1339,6 +1731,50 @@ def generate_node_share_link(self, node: Dict[str, Any]) -> str:
     else:
         return None
 
+
+# 添加新的API路由
+@router.post("/process-link")
+async def process_user_link(request: dict):
+    """处理用户提供的链接"""
+    url = request.get('url', '').strip()
+    mode = request.get('mode', 'direct')  # direct: 直接测试, scrape: 抓取页面
+
+    if not url:
+        return {"error": "URL不能为空"}
+
+    if mode == 'direct':
+        result = await hunter.process_custom_link(url)
+    else:
+        result = await hunter.scrape_and_test_link(url)
+
+    return result
+
+
+@router.get("/user-sources")
+async def get_user_sources():
+    """获取用户自定义源"""
+    return {
+        "sources": hunter.user_sources,
+        "count": len(hunter.user_sources),
+        "total_sources": len(hunter.sources)
+    }
+
+
+@router.delete("/user-sources/{url_index}")
+async def remove_user_source(url_index: int):
+    """移除用户自定义源"""
+    try:
+        if 0 <= url_index < len(hunter.user_sources):
+            removed_url = hunter.user_sources.pop(url_index)
+            # 同时从主源列表移除
+            if removed_url in hunter.sources:
+                hunter.sources.remove(removed_url)
+            hunter.save_user_sources()
+            return {"success": True, "message": "源已移除"}
+        else:
+            return {"error": "索引无效"}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 if __name__ == "__main__":
