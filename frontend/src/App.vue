@@ -4,46 +4,67 @@
       <div class="logo">🕷️</div>
 
       <div class="nav-item" :class="{ active: currentModule === 'crawler' }" @click="currentModule = 'crawler'">
-        <span class="icon">🕸️</span>
-        <span class="text">Viper 爬虫</span>
+        <span class="icon">🕸️</span><span class="text">Viper 爬虫</span>
       </div>
-
       <div class="nav-item" :class="{ active: currentModule === 'alchemy' }" @click="currentModule = 'alchemy'">
-        <span class="icon">⚗️</span>
-        <span class="text">Alchemy 炼金</span>
+        <span class="icon">⚗️</span><span class="text">Alchemy 炼金</span>
       </div>
-
       <div class="nav-item" :class="{ active: currentModule === 'proxy' }" @click="currentModule = 'proxy'">
-        <span class="icon">🌐</span>
-        <span class="text">猎手 IP 池</span>
+        <span class="icon">🌐</span><span class="text">猎手 IP 池</span>
       </div>
-      <div 
-        class="nav-item" 
-        :class="{ active: currentModule === 'nodes' }" 
-        @click="currentModule = 'nodes'"
-      >
-        <span class="icon">🛰️</span>
-        <span class="text">Shadow Matrix</span> 
+      <div class="nav-item" :class="{ active: currentModule === 'nodes' }" @click="currentModule = 'nodes'">
+        <span class="icon">🛰️</span><span class="text">Shadow Matrix</span>
       </div>
-
+      <div class="nav-item" :class="{ active: currentModule === 'cyberrange' }" @click="currentModule = 'cyberrange'">
+        <span class="icon">🛡️</span><span class="text">Cyber Range</span>
+      </div>
+      <div class="nav-item" :class="{ active: currentModule === 'eagle' }" @click="currentModule = 'eagle'">
+        <span class="icon">👁️</span><span class="text">Eagle Eye</span>
+      </div>
+      <div class="nav-item" :class="{ active: currentModule === 'refinery' }" @click="currentModule = 'refinery'">
+        <span class="icon">🏭</span><span class="text">Data Refinery</span>
+      </div>
+      <div class="nav-item" :class="{ active: currentModule === 'app_gen' }" @click="currentModule = 'app_gen'">
+        <span class="icon">📱</span><span class="text">App 创世</span>
+      </div>
+      <div class="nav-item" :class="{ active: currentModule === 'game_gen' }" @click="currentModule = 'game_gen'">
+        <span class="icon">🎮</span><span class="text">Game 创世</span>
+      </div>
     </nav>
 
     <main class="content-area">
-      <KeepAlive>
-        <Transition name="fade" mode="out-in">
-          <component :is="currentComponent" :key="currentModule" />
-        </Transition>
-      </KeepAlive>
+      <Suspense>
+        <template #default>
+          <KeepAlive :max="3">
+            <component :is="currentComponent" :key="currentModule" />
+          </KeepAlive>
+        </template>
+
+        <template #fallback>
+          <div class="loading-placeholder">
+            <div class="spinner"></div>
+            <p class="loading-text">正在加载模块...</p>
+          </div>
+        </template>
+      </Suspense>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import ViperCrawler from './components/ViperCrawler.vue';
-import AlchemyStudio from './components/AlchemyStudio.vue';
-import ProxyStation from './components/ProxyStation.vue';
-import NodeHunter from './components/NodeHunter.vue';
+import { ref, computed, defineAsyncComponent } from 'vue';
+
+// 🔥 异步按需加载 (只有点击时才下载代码)
+const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler.vue'));
+const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio.vue'));
+const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation.vue'));
+const NodeHunter = defineAsyncComponent(() => import('./components/NodeHunter.vue'));
+const CyberRange = defineAsyncComponent(() => import('./components/CyberRange.vue'));
+const EagleEye = defineAsyncComponent(() => import('./components/EagleEye.vue'));
+const DataRefinery = defineAsyncComponent(() => import('./components/DataRefinery.vue'));
+const AppGenerator = defineAsyncComponent(() => import('./components/AppGenerator.vue'));
+
+const GameGenerator = defineAsyncComponent(() => import('./components/GameGenerator.vue')); // 暂时注释，等你建好文件再开
 
 const currentModule = ref('crawler');
 
@@ -52,7 +73,12 @@ const currentComponent = computed(() => {
     case 'crawler': return ViperCrawler;
     case 'alchemy': return AlchemyStudio;
     case 'proxy': return ProxyStation;
-    case 'nodes': return NodeHunter; // 🔥 新增
+    case 'nodes': return NodeHunter;
+    case 'cyberrange': return CyberRange;
+    case 'eagle': return EagleEye;
+    case 'refinery': return DataRefinery;
+    case 'app_gen': return AppGenerator;
+    case 'game_gen': return GameGenerator; // 暂时注释
     default: return ViperCrawler;
   }
 });
@@ -67,13 +93,11 @@ html {
   background: linear-gradient(135deg, #1e2024 0%, #121212 100%);
   color: #e0e0e0;
   overflow: hidden;
-  /* 防止出现双滚动条 */
 }
 
 .app-layout {
   display: flex;
   height: 100vh;
-  /* 强制占满全屏高度 */
   width: 100vw;
 }
 
@@ -98,16 +122,14 @@ html {
   width: 180px;
 }
 
-/* 🔥 关键：消除大边距，让内容占满 */
 .content-area {
   flex: 1;
-  padding: 10px 15px;
-  /* 从 30px 缩小到 10px */
+  padding: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* 内部容器自己负责滚动 */
+  position: relative;
 }
 
 .logo {
@@ -159,13 +181,35 @@ html {
   opacity: 1;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
+/* 加载动画样式 */
+.loading-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #1e2024;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #333;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+.loading-text {
+  color: #666;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

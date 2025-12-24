@@ -1,19 +1,16 @@
+# backend/alchemy_engine.py
 import json
-import requests
 import asyncio
 import random
-import time
+import re
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
-
-# ==================== 配置区域 ====================
-AI_BASE_URL = os.getenv("AI_BASE_URL")
-AI_API_KEY = os.getenv("AI_API_KEY")
+try:
+    from ai_hub import call_ai
+except ImportError:
+    call_ai = None
 
 router = APIRouter(prefix="/api/alchemy", tags=["alchemy"])
 
@@ -22,153 +19,193 @@ class DeAIRequest(BaseModel):
     text: str
 
 
-LANG_POOL = {
-    "DE": "Academic German",
-    "FR": "Formal French",
-    "RU": "Formal Russian",
-    "ES": "Academic Spanish",
-    "JP": "Formal Japanese",
-    "KR": "Formal Korean",
-    "IT": "Formal Italian",
-    "PT": "Academic Portuguese"
-}
+WRITER_MODEL = "deepseek-ai/DeepSeek-V3"
+JUDGE_MODEL = "deepseek-ai/DeepSeek-R1"
 
 
-# ==================== 增强型调用 ====================
-def call_ai_with_retry(prompt, text, model="gpt-4o-mini", max_retries=3):
-    headers = {
-        "Authorization": f"Bearer {AI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": text}
-        ],
-        "temperature": 0.7
-    }
+# ==================== 1. 工具函数：提取思维链 ====================
+def extract_think_content(text):
+    """分离 <think> 内容和正文"""
+    if not text: return None, None
+    think_content = None
+    clean_text = text
 
-    session = requests.Session()
-    session.trust_env = False
+    # 提取 <think>...</think>
+    match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
+    if match:
+        think_content = match.group(1).strip()
+        clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
-    for attempt in range(max_retries):
-        try:
-            resp = session.post(AI_BASE_URL, headers=headers, json=payload, timeout=60)
-            if resp.status_code == 200:
-                data = resp.json()
-                if "choices" in data: return data['choices'][0]['message']['content']
-            elif resp.status_code in [500, 502, 503]:
-                time.sleep(2)
-                continue
-            else:
-                raise Exception(f"API Error {resp.status_code}")
-        except Exception as e:
-            if attempt == max_retries - 1: raise e
-            time.sleep(1)
+    # 清洗 Markdown JSON 包裹
+    clean_text = clean_text.replace("```json", "").replace("```", "").strip()
+    return think_content, clean_text
 
-    raise Exception("API 连接失败")
+# ==================== 2. 裁判系统 (带思维链返回) ====================
+# 2. 裁判系统：温度设为 0 以保证结果绝对一致
+async def detect_ai_probability(text: str) -> dict:
+    # 更加严谨的 Prompt，要求先思考特征，再打分，防止瞎猜
+    prompt = (
+        "Role: Professional AI Text Forensic Analyst.\n"
+        "Task: Analyze the following text and determine the probability (0-100%) that it was written by an AI.\n"
+        "Method: \n"
+        "1. First, inside <think> tags, analyze the Sentence Length Variance (Burstiness) and Perplexity.\n"
+        "2. Look for AI patterns: robotic transitions ('Moreover', 'In conclusion'), repetitive structure, lack of idioms.\n"
+        "3. Finally, output the JSON.\n"
+        "Output Format: <think>...analysis...</think>\n"
+        "JSON ONLY: {\"score\": <int 0-100>, \"reason\": \"<short summary>\"}\n"
+        "Constraint: Be consistent. If text is casual and irregular, score low (<10). If text is rigid and textbook-like, score high (>80)."
+    )
 
+    try:
+        # 🔥 关键：temperature=0 确保每次检测结果一致，不会出现一次12一次95的情况
+        raw_text, model_name = call_ai(
+            prompt,
+            f"TEXT TO ANALYZE:\n{text[:1500]}",
+            model=JUDGE_MODEL,
+            temperature=0,
+            return_model_name=True
+        )
 
-# ==================== 核心：混沌思维管道 ====================
+        # 提取思考和结果
+        think, json_text = extract_think_content(raw_text)
+        data = parse_json_safely(json_text)
+
+        if data:
+            return {
+                "score": int(data.get("score", 50)),
+                "detector": model_name,
+                "thinking": think  # 将思考过程返回给前端
+            }
+
+    except Exception as e:
+        return {"score": -1, "detector": f"Error: {str(e)}", "thinking": None}
+
+    return {"score": -1, "detector": "Failed", "thinking": None}
+
+# ==================== 3. 核心流程 (完全透明化) ====================
+# backend/alchemy_engine.py (新增工具函数 + 替换主流程)
+
+def parse_json_safely(text):
+    try:
+        # 尝试寻找最外层的 {}
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1:
+            return json.loads(text[start:end + 1])
+        return json.loads(text)
+    except:
+        return None
+
+# 2. 替换：带透明化展示的主流程
+# 3. 核心流程：实时推送思维链
 async def chaos_pipeline(source_text: str):
     try:
-        # 1. 初始化
-        yield json.dumps({"step": "init", "msg": "🔌 接入神经语言矩阵..."}) + "\n"
+        yield json.dumps({"step": "init", "msg": "🔌 启动 DeepSeek 透明化引擎 (CoT Visible)..."}) + "\n"
         await asyncio.sleep(0.5)
 
-        # 2. 深度检测 (语言 + AI率)
-        yield json.dumps({"step": "thought", "msg": "🔍 分析文本指纹 & 估算 AI 疑似度..."}) + "\n"
+        # --- Phase 1: 初始检测 ---
+        yield json.dumps({"step": "thought", "msg": "🕵️‍♂️ 裁判 (DeepSeek R1) 正在深度审视 (Temp=0)..."}) + "\n"
+        check = await detect_ai_probability(source_text)
 
-        # 🔥 让 AI 评估自己的同类
-        detect_prompt = (
-            "Analyze the text.\n"
-            "1. Identify the Language (ISO 2-letter code & English Name).\n"
-            "2. Estimate the 'AI-Generation Probability' (0-100) based on perplexity and lack of burstiness.\n"
-            "Return JSON ONLY: {\"code\": \"ZH\", \"name\": \"Chinese\", \"ai_score\": 95}"
-        )
+        # 🔥 实时展示裁判的思考过程
+        if check.get("thinking"):
+            yield json.dumps(
+                {"step": "process", "msg": f"🧠 [裁判思考]:\n{check['thinking'][:300]}...\n(分析完毕)"}) + "\n"
 
-        origin_code = "EN"
-        origin_name = "English"
-        input_score = 0
+        current_score = check["score"]
+        if current_score == -1:
+            yield json.dumps({"step": "error", "msg": "❌ 检测失败: 请检查 SILICON_API_KEY"}) + "\n"
+            return
 
-        try:
-            detect_res = call_ai_with_retry(detect_prompt, source_text[:500])
-            # 清理 markdown 标记
-            clean_json = detect_res.replace("```json", "").replace("```", "").strip()
-            info = json.loads(clean_json)
+        yield json.dumps(
+            {"step": "detected", "score": current_score, "msg": f"初始: {current_score}% ({check['detector']})"}) + "\n"
 
-            origin_code = info.get("code", "EN").upper()
-            origin_name = info.get("name", "English")
-            input_score = info.get("ai_score", random.randint(85, 99))  # 如果没返回，这就当作很高
+        # --- Phase 2: 智能跳过 ---
+        target_score = 10
+        if current_score <= 15:
+            yield json.dumps({"step": "process", "msg": "✅ 分数已达标，正在进行微调润色..."}) + "\n"
 
-        except:
-            origin_code = "AUTO"
-            input_score = 88  # 默认高分
+            prompt = "Polish this text to make it flow naturally like a native speaker. Do not change the meaning."
+            # 调用 V3 微调
+            raw_res, model_name = call_ai(prompt, source_text, model=WRITER_MODEL, return_model_name=True)
+            think, final_text = extract_think_content(raw_res)
 
-        # 发送检测结果 (带分数)
-        yield json.dumps({
-            "step": "detected",
-            "lang": origin_code,
-            "score": input_score,
-            "msg": f"检测完成: {origin_name} | AI 疑似度: {input_score}%"
-        }) + "\n"
+            if think:
+                yield json.dumps({"step": "process", "msg": f"🧠 [润色思考]:\n{think[:150]}..."}) + "\n"
 
-        # 3. 路径规划
-        yield json.dumps({"step": "thought", "msg": "🎲 计算最优熵增路径..."}) + "\n"
-        candidates = [k for k in LANG_POOL.keys() if k != origin_code]
-        path = random.sample(candidates, 2)
-        yield json.dumps({"step": "path_created", "path": path,
-                          "desc": f"{origin_code} ➔ {path[0]} ➔ {path[1]} ➔ {origin_code}"}) + "\n"
+            yield json.dumps({"step": "done", "result": final_text, "final_score": current_score,
+                              "msg": f"已达标 | 微调模型: {model_name}"}) + "\n"
+            return
 
+        # --- Phase 3: 深度降重 ---
         current_text = source_text
+        best_text = source_text
+        best_score = current_score
 
-        # 4. 熔炼循环
-        for i, lang_code in enumerate(path):
-            target_name = LANG_POOL[lang_code]
-            think_msg = "🔨 打散 AI 常用句式结构..." if i == 0 else "🌪️ 注入语言随机性..."
-            yield json.dumps({"step": "thought", "msg": think_msg}) + "\n"
-            yield json.dumps({"step": "process", "lang": lang_code, "msg": f"正在熔炼: {target_name}"}) + "\n"
+        # 确保 strategies 格式正确 (2元素元组)
+        strategies = [
+            ("深度拟人", "Rewrite to sound like a human expert. Use variable sentence lengths. **NO LISTS**."),
+            ("结构打散", "Completely change sentence structure. Combine short sentences. **NO LISTS**."),
+            ("暴力口语", "Explain this casually. Use idioms. **NO FORMATTING**.")
+        ]
 
-            trans_prompt = f"Translate to {target_name}. Use varied sentence structures. Keep academic logic."
-            current_text = call_ai_with_retry(trans_prompt, current_text)
-            yield json.dumps({"step": "update_view", "lang": lang_code, "content": current_text}) + "\n"
+        MAX_ATTEMPTS = 3
+        attempt = 0
 
-        # 5. 最终重铸
-        yield json.dumps({"step": "thought", "msg": "🧬 正在进行拟人化重组..."}) + "\n"
-        yield json.dumps({"step": "process", "lang": "FINAL", "msg": f"最终重铸: 回归 {origin_name}"}) + "\n"
+        while current_score > target_score and attempt < MAX_ATTEMPTS:
+            attempt += 1
+            if attempt > len(strategies): break
 
-        final_prompt = (
-            f"Translate back into {origin_name}.\n"
-            "Role: Human Editor.\n"
-            "Goal: Rewrite to bypass AI detection (Low Perplexity, High Burstiness).\n"
-            "Rules: Use natural phrasing, avoid repetition, vary sentence length.\n"
-            "Output: Only the text."
-        )
-        final_result = call_ai_with_retry(final_prompt, current_text)
+            strategy_name, prompt_instruction = strategies[attempt - 1]
 
-        # 6. 最终评分 (模拟自测)
-        # 既然我们已经做了去AI化，我们可以合理推断分数会下降。
-        # 为了节省一次 API 调用，我们可以根据算法逻辑生成一个合理的低分，或者再次调用 API 评分
-        # 这里为了效果真实，我们让 AI 再评一次，但为了速度，这次我们模拟一个降幅
+            yield json.dumps({"step": "thought", "msg": f"🔄 [Round {attempt}] 执行策略: {strategy_name}..."}) + "\n"
 
-        # 模拟逻辑：每经过一层熔炼，AI率下降 30%-40%
-        # 但既然用户要看“思考过程”，我们yield一个计算过程
-        yield json.dumps({"step": "thought", "msg": "📊 正在进行最终 AI 残留检测..."}) + "\n"
-        await asyncio.sleep(0.8)
+            # 执行生成
+            raw_res, model_name = call_ai(prompt_instruction, current_text, model=WRITER_MODEL, return_model_name=True)
+            think, temp_text = extract_think_content(raw_res)
 
-        # 简单算法模拟最终降分 (为了体验流畅度，避免最后卡顿)
-        # 如果你想真实调用，可以再调一次 call_ai_with_retry，但可能会慢 3-5秒
-        final_score = max(random.randint(2, 15), int(input_score * 0.1))
+            # 🔥 展示写手的思考
+            if think:
+                yield json.dumps({"step": "process", "msg": f"🧠 [写手思考]:\n{think[:200]}..."}) + "\n"
+
+            yield json.dumps({"step": "update_view", "content": temp_text}) + "\n"
+
+            # 复检
+            yield json.dumps({"step": "thought", "msg": "🔍 裁判复检中..."}) + "\n"
+            new_check = await detect_ai_probability(temp_text)
+
+            if new_check.get("thinking"):
+                yield json.dumps({"step": "process", "msg": f"🧠 [复检思考]:\n{new_check['thinking'][:150]}..."}) + "\n"
+
+            new_score = new_check["score"]
+
+            # 止损逻辑
+            if new_score > current_score + 10:
+                yield json.dumps(
+                    {"step": "ai_warn", "msg": f"⚠️ 警告: 分数恶化 ({current_score}% -> {new_score}%)，回滚..."}) + "\n"
+                current_text = best_text
+            elif new_score <= current_score:
+                yield json.dumps({"step": "process", "msg": f"📉 优化成功: {current_score}% -> {new_score}%"}) + "\n"
+                current_text = temp_text
+                current_score = new_score
+                best_text = temp_text
+                best_score = new_score
+            else:
+                current_text = temp_text
+                current_score = new_score
+
+            if current_score <= target_score:
+                break
 
         yield json.dumps({
             "step": "done",
-            "result": final_result,
-            "final_score": final_score
+            "result": best_text,
+            "final_score": best_score,
+            "msg": f"最终: {best_score}% | 裁判: {new_check['detector']}"
         }) + "\n"
 
     except Exception as e:
-        yield json.dumps({"step": "error", "msg": str(e)}) + "\n"
+        yield json.dumps({"step": "error", "msg": f"Err: {str(e)}"}) + "\n"
 
 
 @router.post("/de_ai")

@@ -33,7 +33,13 @@ import qrcode
 from io import BytesIO
 import base64
 from link_scraper import LinkScraper
+from aiohttp_socks import ProxyConnector # 需要这个库
 
+# 1. 引入中央管理器
+try:
+    from proxy_engine import manager as pool_manager
+except ImportError:
+    pool_manager = None
 
 # 设置日志
 logging.basicConfig(
@@ -313,6 +319,47 @@ class NodeHunter:
         color = colors.get(level, "\033[0m")
         print(f"{color}[{timestamp}] {icon} {message}\033[0m")
 
+    # 🔥🔥🔥 核心升级：抓取订阅源时使用代理池 🔥🔥🔥
+    async def fetch_all_subscriptions(self) -> List[str]:
+            """获取所有订阅源的节点链接 (增强版：抗墙)"""
+            all_nodes = []
+
+            # 获取标准链路
+            chain = []
+            if pool_manager:
+                chain = pool_manager.get_standard_chain()
+            chain.append((None, "Direct", 10))
+
+            # 为了提高效率，我们对每个源并发尝试
+            async def fetch_single_source(url):
+                # 轮询代理链直到成功
+                for proxy_url, name, timeout_sec in chain:
+                    try:
+                        connector = ProxyConnector.from_url(proxy_url) if proxy_url else aiohttp.TCPConnector(ssl=False)
+                        async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(
+                                total=timeout_sec + 10)) as session:
+                            async with session.get(url) as response:
+                                if response.status == 200:
+                                    content = await response.text()
+                                    nodes = self.extract_node_urls(content)
+                                    if nodes:
+                                        self.add_log(f"✅ {name} 成功抓取: {url[:30]}... (+{len(nodes)})", "SUCCESS")
+                                        return nodes
+                    except:
+                        continue  # 失败换下一个代理
+
+                self.add_log(f"❌ 所有通道抓取失败: {url[:30]}...", "ERROR")
+                return []
+
+            # 并发抓取所有源
+            tasks = [fetch_single_source(src) for src in self.sources]
+            results = await asyncio.gather(*tasks)
+
+            for res in results:
+                all_nodes.extend(res)
+
+            return list(set(all_nodes))
+
     # ==================== 基础解析方法 ====================
 
     def clean_base64(self, b64_str: str) -> str:
@@ -540,41 +587,6 @@ class NodeHunter:
             self.is_scanning = False
 
     # ==================== 订阅源获取 ====================
-
-    async def fetch_all_subscriptions(self) -> List[str]:
-        """获取所有订阅源的节点链接"""
-        all_nodes = []
-
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-
-        async with aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=ssl_context)
-        ) as session:
-
-            for source_url in self.sources:
-                try:
-                    self.add_log(f"📥 抓取源: {source_url}", "INFO")
-
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Accept': 'text/plain,application/json,text/html',
-                    }
-
-                    async with session.get(source_url, headers=headers, timeout=15) as response:
-                        if response.status == 200:
-                            content = await response.text()
-                            nodes = self.extract_node_urls(content)
-                            all_nodes.extend(nodes)
-                            self.add_log(f"   ↳ 提取到 {len(nodes)} 个节点", "SUCCESS")
-                        else:
-                            self.add_log(f"   ↳ 请求失败: HTTP {response.status}", "WARNING")
-
-                except asyncio.TimeoutError:
-                    self.add_log(f"   ↳ 请求超时", "WARNING")
-                except Exception as e:
-                    self.add_log(f"   ↳ 错误: {str(e)[:50]}", "ERROR")
-
-        return list(set(all_nodes))  # 去重
 
     def extract_node_urls(self, content: str) -> List[str]:
         """从内容提取节点链接"""
@@ -1479,7 +1491,7 @@ class NodeHunter:
 
         finally:
             self.custom_is_scanning = False
-            
+
 # 创建实例
 hunter = NodeHunter()
 
