@@ -28,3 +28,4 @@ valid_proxies.json
 data_*.csv
 apps_storage.db
 valid_proxies.json
+verified_nodes.json

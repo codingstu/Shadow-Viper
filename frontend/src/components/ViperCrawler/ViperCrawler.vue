@@ -10,12 +10,20 @@
         <input v-model="targetUrl" type="text" placeholder="输入网址 (支持 MissAV, Reddit, 知乎, B站等)" :disabled="isCrawling" />
 
         <select v-model="crawlMode" :disabled="isCrawling" class="mode-select">
-          <option value="text">📄 极速文本 (表格视图)</option>
-          <option value="media">🎬 深度媒体 (卡片视图)</option>
+          <option value="text">📄 极速文本</option>
+          <option value="media">🎬 深度媒体</option>
         </select>
 
-        <button 
-          @click="startCrawl" 
+        <!-- 🔥 更新网络模式选择器 -->
+        <select v-model="networkType" :disabled="isCrawling" class="mode-select network-select">
+          <option value="auto">🤖 自动模式</option>
+          <option value="node">🛰️ Shadow Matrix</option>
+          <option value="proxy">🌐 猎手 IP 池</option>
+          <option value="direct">⚡️ 仅直连</option>
+        </select>
+
+        <button
+          @click="startCrawl"
           :disabled="isCrawling || !targetUrl"
           :class="{ 'processing': isCrawling }"
         >
@@ -36,17 +44,13 @@
             </div>
           </div>
         </div>
-        
+
         <div class="log-window" ref="logWindowRef">
           <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="log.type">
             <span class="time">[{{ log.time }}]</span>
             <span class="msg">> {{ log.text }}</span>
           </div>
           <div v-if="logs.length === 0" class="placeholder">等待指令输入...</div>
-        </div>
-
-        <div v-if="downloadLink" class="download-box">
-          <a :href="downloadLink" target="_blank" class="download-btn">📥 下载完整 CSV 结果</a>
         </div>
       </div>
 
@@ -148,34 +152,25 @@ import Hls from 'hls.js';
 
 const targetUrl = ref('');
 const crawlMode = ref('text');
+const networkType = ref('auto'); // 🔥 默认改为 auto
 const logs = ref([]);
 const isCrawling = ref(false);
-const downloadLink = ref(null);
 const logWindowRef = ref(null);
-
 const previewData = ref([]);
-const previewHeaders = ref([]);
 
 const getCurrentTime = () => new Date().toLocaleTimeString();
 
-// 🔥 辅助函数：为任何 URL 加上后端代理
 const proxyUrl = (url) => {
   if (!url || url === 'No Cover') return '';
   return `http://127.0.0.1:8000/api/proxy?url=${encodeURIComponent(url)}`;
 };
 
 const initVideoPlayer = (videoEl, originalUrl) => {
-  if (!videoEl || !originalUrl) return;
-  if (videoEl.dataset.initialized === 'true') return;
-
+  if (!videoEl || !originalUrl || videoEl.dataset.initialized === 'true') return;
   const proxied = proxyUrl(originalUrl);
-  console.log("Playing:", proxied);
-
   if (originalUrl.includes('.m3u8')) {
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        xhrSetup: function (xhr, url) { xhr.withCredentials = false; }
-      });
+      const hls = new Hls();
       hls.loadSource(proxied);
       hls.attachMedia(videoEl);
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
@@ -184,30 +179,20 @@ const initVideoPlayer = (videoEl, originalUrl) => {
   } else {
     videoEl.src = proxied;
   }
-
   videoEl.dataset.initialized = 'true';
 };
 
 const mediaItems = computed(() => {
   if (crawlMode.value !== 'media') return [];
-  const items = [];
-  previewData.value.forEach(row => {
+  return previewData.value.map(row => {
     const type = row['类型'] || '';
-    const content = row['内容'] || '';
-    const remark = row['备注'] || '';
-    if (type === '视频') {
-      items.push({ type: 'video', url: content, cover: remark, title: row['标题'] });
-    } else if (type === '图片') {
-      items.push({ type: 'image', url: content });
-    } else if (['标题', 'Meta', 'Title', 'Video-Title', 'API-Title'].includes(type)) {
-      // 忽略
-    } else {
-      if (content && content.length > 2) {
-        items.push({ type: 'text', content: content, rawType: type });
-      }
+    if (type === '视频') return { type: 'video', url: row['内容'], cover: row['备注'], title: row['标题'] };
+    if (type === '图片') return { type: 'image', url: row['内容'] };
+    if (!['标题', 'Meta', 'Title', 'Video-Title', 'API-Title'].includes(type) && row['内容']?.length > 2) {
+      return { type: 'text', content: row['内容'], rawType: type };
     }
-  });
-  return items;
+    return null;
+  }).filter(Boolean);
 });
 
 const startCrawl = async () => {
@@ -217,16 +202,15 @@ const startCrawl = async () => {
 
   isCrawling.value = true;
   logs.value = [];
-  downloadLink.value = null;
   clearPreview();
 
-  logs.value.push({ time: getCurrentTime(), text: `🚀 启动 Viper 引擎 [${crawlMode.value}]...`, type: 'info' });
+  logs.value.push({ time: getCurrentTime(), text: `🚀 启动 Viper 引擎 [${crawlMode.value}] [Net: ${networkType.value}]...`, type: 'info' });
 
   try {
     const response = await fetch('http://127.0.0.1:8000/api/crawl', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: finalUrl, mode: crawlMode.value })
+      body: JSON.stringify({ url: finalUrl, mode: crawlMode.value, network_type: networkType.value })
     });
 
     const reader = response.body.getReader();
@@ -235,7 +219,6 @@ const startCrawl = async () => {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       const chunk = decoder.decode(value, { stream: true });
       const lines = chunk.split('\n').filter(line => line.trim());
 
@@ -243,9 +226,8 @@ const startCrawl = async () => {
         try {
           const data = JSON.parse(line);
           if (data.step === 'done') {
-            downloadLink.value = data.download_url;
-            logs.value.push({ time: getCurrentTime(), text: '✅ 任务完成，正在渲染结果...', type: 'success' });
-            await fetchPreviewData(data.download_url);
+            previewData.value = data.data;
+            logs.value.push({ time: getCurrentTime(), text: `✅ 任务完成，已渲染 ${data.data.length} 条数据`, type: 'success' });
           } else if (data.step === 'error') {
             logs.value.push({ time: getCurrentTime(), text: '❌ ' + data.message, type: 'error' });
           } else {
@@ -260,75 +242,6 @@ const startCrawl = async () => {
     logs.value.push({ time: getCurrentTime(), text: '系统错误: ' + err.message, type: 'error' });
   } finally {
     isCrawling.value = false;
-  }
-};
-
-const parseCSV = (text) => {
-  if (text.charCodeAt(0) === 0xFEFF) text = text.substr(1);
-  const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-  const result = [];
-  const cellRegex = /(?:,|^)(?:"([^"]*(?:""[^"]*)*)"|([^",]*))/g;
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const values = [];
-    let match;
-    cellRegex.lastIndex = 0;
-    while ((match = cellRegex.exec(line)) !== null) {
-      let val = match[1] !== undefined ? match[1] : match[2];
-      val = val ? val.replace(/""/g, '"').trim() : '';
-      values.push(val);
-      if (match.index === cellRegex.lastIndex) cellRegex.lastIndex++;
-    }
-    if (values.length > 0) {
-      const rowObj = {};
-      const cleanValues = values.filter(v => v !== undefined).slice(1);
-
-      if (cleanValues.length !== headers.length) {
-        const manualValues = parseLineManual(line);
-        manualValues.forEach((val, idx) => { if (headers[idx]) rowObj[headers[idx]] = val; });
-      } else {
-        cleanValues.forEach((val, idx) => { if (headers[idx]) rowObj[headers[idx]] = val; });
-      }
-      if (Object.keys(rowObj).length > 0) result.push(rowObj);
-    }
-  }
-  return result;
-};
-
-const parseLineManual = (line) => {
-  const values = [];
-  let current = '';
-  let inQuote = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-      inQuote = !inQuote;
-    } else if (char === ',' && !inQuote) {
-      values.push(current.replace(/^"|"$/g, '').replace(/""/g, '"'));
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  values.push(current.replace(/^"|"$/g, '').replace(/""/g, '"'));
-  return values;
-};
-
-const fetchPreviewData = async (url) => {
-  try {
-    const resp = await fetch(url);
-    const text = await resp.text();
-    const data = parseCSV(text);
-    const validData = data.filter(r => r['类型'] || r['内容']);
-    previewData.value = validData;
-    logs.value.push({ time: getCurrentTime(), text: `📊 数据渲染完毕 (共 ${validData.length} 条)`, type: 'success' });
-  } catch (e) {
-    console.error(e);
-    logs.value.push({ time: getCurrentTime(), text: 'CSV 解析异常', type: 'error' });
   }
 };
 
@@ -392,6 +305,12 @@ input {
   border-radius: 6px;
 }
 
+.network-select {
+  background-color: #2c3e50 !important;
+  color: #ecf0f1 !important;
+  border-color: #34495e !important;
+}
+
 button {
   padding: 0 30px;
   background: #42b983;
@@ -410,7 +329,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* 🔥 按钮运行时的状态 */
 button.processing {
   background: #2c3e50;
   border: 1px solid #3e5871;
@@ -450,14 +368,12 @@ button.processing {
   flex-shrink: 0;
 }
 
-/* 🔥 系统日志标题组样式 */
 .header-title-group {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-/* 🔥 呼吸灯样式 */
 .status-indicator {
   display: flex;
   align-items: center;
@@ -480,7 +396,6 @@ button.processing {
   transition: all 0.3s;
 }
 
-/* 激活状态 */
 .status-indicator.active {
   border-color: rgba(66, 185, 131, 0.5);
   background: rgba(66, 185, 131, 0.1);
@@ -493,14 +408,12 @@ button.processing {
   animation: breathe 1.5s infinite ease-in-out;
 }
 
-/* 呼吸动画 */
 @keyframes breathe {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.2); opacity: 0.6; }
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* 日志窗口 */
 .log-window {
   flex: 1;
   padding: 15px;
@@ -533,21 +446,6 @@ button.processing {
   color: #e57373;
 }
 
-.download-box {
-  padding: 10px;
-  background: #252525;
-  text-align: center;
-  border-top: 1px solid #333;
-  flex-shrink: 0;
-}
-
-.download-btn {
-  color: #42b983;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-/* 预览区域 */
 .preview-panel {
   display: flex;
   flex-direction: column;
@@ -560,7 +458,6 @@ button.processing {
   overflow: hidden;
 }
 
-/* 文本表格容器 */
 .table-container {
   width: 100%;
   height: 100%;
@@ -634,7 +531,6 @@ tr:hover td {
   text-overflow: ellipsis;
 }
 
-/* 媒体流容器 */
 .media-container {
   width: 100%;
   height: 100%;

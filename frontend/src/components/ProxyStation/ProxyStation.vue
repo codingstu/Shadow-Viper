@@ -22,16 +22,16 @@
     <div class="workspace">
       <div class="left-pane">
         <div class="control-box">
-          <button 
-            @click="triggerTask" 
-            :disabled="stats.running" 
-            class="main-btn" 
+          <button
+            @click="triggerTask"
+            :disabled="stats.running"
+            class="main-btn"
             :class="{ 'btn-loading': stats.running }"
           >
             <span v-if="!stats.running">🚀 启动 IP 狩猎</span>
             <span v-else>⏳ 正在扫描全球节点...</span>
           </button>
-          
+
           <div class="sub-controls">
             <button @click="fetchData" class="sec-btn">🔄 刷新</button>
             <button @click="cleanPool" class="danger-btn">🗑️ 清空</button>
@@ -56,7 +56,7 @@
           <span>🏆 优质代理排行榜 (Top 100)</span>
           <span class="api-hint">API: /api/proxy_pool/pop</span>
         </div>
-        
+
         <div class="table-container">
           <table>
             <thead>

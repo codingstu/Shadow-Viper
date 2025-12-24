@@ -6,12 +6,11 @@ from dotenv import load_dotenv
 
 # 引入各个模块的路由 (使用相对导入)
 from .modules.alchemy.alchemy_engine import router as alchemy_router
-from .modules.proxy.proxy_engine import router as proxy_router
-from .modules.node_hunter.node_hunter import router as node_router
+from .modules.proxy.proxy_engine import router as proxy_router, manager as pool_manager
+from .modules.node_hunter.node_hunter import router as node_router, hunter as node_hunter
 from .modules.cyber_range.cyber_range import router as cyber_router
 from .modules.eagle_eye.eagle_eye import router as eagle_router
 from .modules.crawler.crawler_engine import router as crawler_router
-from .modules.proxy.proxy_engine import manager as pool_manager
 from .modules.data_refinery.data_refinery import router as refinery_router
 from .modules.generator.generator_engine import router as generator_router
 from .modules.game.game_engine import router as game_router
@@ -20,7 +19,8 @@ from .core.ai_hub import set_pool_manager
 
 load_dotenv()
 
-# 初始化 AI Hub 的 pool_manager
+# 🔥 核心修复：移除 NodeHunter 和 ProxyManager 的直接连接
+# pool_manager.set_node_provider(node_hunter.get_alive_nodes)
 set_pool_manager(pool_manager)
 
 app = FastAPI(title="SpiderFlow API")

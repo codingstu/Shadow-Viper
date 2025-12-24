@@ -53,9 +53,12 @@ class ProxyManager:
         self.logs = []
         self.scheduler = AsyncIOScheduler()
         self.load_from_file()
+        self.node_provider = None # 🔥 移除：不再直接使用 NodeHunter 节点
 
-        # 🔥 修改：每 1 分钟自动刷新一次，保持 IP 池极度新鲜
-        self.scheduler.add_job(self.run_cycle, 'interval', minutes=1)
+    def set_node_provider(self, provider_func):
+        """(Deprecated) 注入 NodeHunter 的节点提供函数"""
+        # self.node_provider = provider_func
+        pass
 
     def start(self):
         if not self.scheduler.running:
@@ -63,23 +66,20 @@ class ProxyManager:
             self.log("✅ [System] 代理池极速净化引擎已启动 (1min/cycle)")
             asyncio.create_task(self.run_cycle())
 
-    # 🔥🔥🔥 全局统一链路生成器 (优化版) 🔥🔥🔥
     def get_standard_chain(self):
         """
         返回标准代理链路，策略：
-        1. 猎手池：从 Top 20 中随机取 3 个 (扩大范围以应对高频请求)
-        2. 付费代理
-        3. Tor
+        1. 🥇 猎手 IP 池 (Top 3)
+        2. 🥈 付费代理
+        3. 🥉 Tor
         """
         chain = []
 
         # 1. 🥇 猎手 IP 池
         alive_nodes = [p for p in self.proxies if p.score > 0]
         if alive_nodes:
-            # 🔥 修改：扩大选择范围到 Top 20，避免总是逮着那几只羊薅
             top_limit = min(len(alive_nodes), 20)
             top_nodes = alive_nodes[:top_limit]
-            # 随机取 3 个，配合 1 分钟的刷新率，保证链路动态性
             selected = random.sample(top_nodes, min(len(top_nodes), 3))
             for p in selected:
                 chain.append((p.to_url(), f"Hunter Node ({p.country})", 5))

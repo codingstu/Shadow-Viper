@@ -55,16 +55,15 @@
 import { ref, computed, defineAsyncComponent } from 'vue';
 
 // 🔥 异步按需加载 (只有点击时才下载代码)
-const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler.vue'));
-const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio.vue'));
-const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation.vue'));
-const NodeHunter = defineAsyncComponent(() => import('./components/NodeHunter.vue'));
-const CyberRange = defineAsyncComponent(() => import('./components/CyberRange.vue'));
-const EagleEye = defineAsyncComponent(() => import('./components/EagleEye.vue'));
-const DataRefinery = defineAsyncComponent(() => import('./components/DataRefinery.vue'));
-const AppGenerator = defineAsyncComponent(() => import('./components/AppGenerator.vue'));
-
-const GameGenerator = defineAsyncComponent(() => import('./components/GameGenerator.vue')); // 暂时注释，等你建好文件再开
+const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
+const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
+const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation/ProxyStation.vue'));
+const NodeHunter = defineAsyncComponent(() => import('./components/NodeHunter/NodeHunter.vue'));
+const CyberRange = defineAsyncComponent(() => import('./components/CyberRange/CyberRange.vue'));
+const EagleEye = defineAsyncComponent(() => import('./components/EagleEye/EagleEye.vue'));
+const DataRefinery = defineAsyncComponent(() => import('./components/DataRefinery/DataRefinery.vue'));
+const AppGenerator = defineAsyncComponent(() => import('./components/AppGenerator/AppGenerator.vue'));
+const GameGenerator = defineAsyncComponent(() => import('./components/GameGenerator/GameGenerator.vue'));
 
 const currentModule = ref('crawler');
 
@@ -78,7 +77,7 @@ const currentComponent = computed(() => {
     case 'eagle': return EagleEye;
     case 'refinery': return DataRefinery;
     case 'app_gen': return AppGenerator;
-    case 'game_gen': return GameGenerator; // 暂时注释
+    case 'game_gen': return GameGenerator;
     default: return ViperCrawler;
   }
 });

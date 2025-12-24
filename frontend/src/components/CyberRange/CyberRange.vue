@@ -288,11 +288,11 @@ const attackTarget = async (id) => {
 // 🔥 核心修改：调用真实后端 Nmap 接口
 const runPortScan = async () => {
   if (!scanTarget.value) return;
-  
+
   // 1. 清空旧结果并显示日志
   portScanResult.value = [];
   addLog(`🚀 正在调用 Nmap 扫描目标: ${scanTarget.value} (请耐心等待)...`);
-  
+
   try {
     // 2. 发送请求给后端
     const res = await axios.post(`${apiBaseUrl.value}/api/cyber/tools/port-scan`, {
@@ -309,7 +309,7 @@ const runPortScan = async () => {
     } else {
       addLog(`⚠️ 扫描完成，但在目标上未发现开放端口 (或防火墙拦截)`);
     }
-    
+
   } catch (e) {
     console.error(e);
     addLog(`❌ 扫描出错: ${e.response?.data?.message || e.message}`);
@@ -330,7 +330,7 @@ const checkBackend = async () => {
 
         // 同步真实状态 (可选，防止页面刷新后状态丢失)
         // const tRes = await axios.get(`${apiBaseUrl.value}/api/cyber/targets`);
-        // if(tRes.data.targets) { ... } 
+        // if(tRes.data.targets) { ... }
     } catch (e) {
         addLog("⚠️ 无法连接后端，请检查 main.py 是否运行");
     }
