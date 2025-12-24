@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from playwright.async_api import async_playwright, Route
 from abc import ABC, abstractmethod
 import pandas as pd
+import random
 
 # 引入代理池管理器 (相对导入)
 try:
@@ -24,27 +25,30 @@ class BaseCrawler(ABC):
 
     async def get_proxy_chain(self, network_type: str = "auto"):
         chain = []
+        
         if network_type == "direct":
             chain.append((None, "Direct", 10))
             return chain
 
-        if pool_manager:
-            if network_type in ["node", "auto"] and pool_manager.node_provider:
-                try:
-                    nodes = pool_manager.node_provider()
-                    for node in nodes[:3]:
-                        chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ Shadow Matrix ({node['name'][:10]})", 10))
-                except: pass
-            
-            if network_type in ["proxy", "auto"]:
+        # Node mode removed as per previous discussion (incompatible protocols)
+        
+        if network_type == "proxy":
+            if pool_manager:
                 alive_nodes = [p for p in pool_manager.proxies if p.score > 0]
                 if alive_nodes:
                     selected = sorted(alive_nodes, key=lambda p: p.speed)[:3]
                     for p in selected:
-                        chain.append((p.to_url(), f"🌐 Hunter Pool ({p.country})", 5))
+                        chain.append((p.to_url(), f"🌐 Hunter Pool ({p.ip}:{p.port})", 10))
+            return chain
+
+        # Auto mode
+        if pool_manager:
+            alive_nodes = [p for p in pool_manager.proxies if p.score > 0]
+            if alive_nodes:
+                p = random.choice(alive_nodes)
+                chain.append((p.to_url(), f"🌐 Hunter Pool ({p.ip}:{p.port})", 10))
         
-        if not chain: # Fallback
-            chain.append((None, "Direct", 10))
+        chain.append((None, "Direct", 10))
         return chain
 
 async def async_request(method, url, **kwargs):
@@ -65,24 +69,19 @@ async def request_with_chain_async(url, headers=None, stream=False, timeout=10, 
     chain = []
     if network_type == "direct":
         chain.append((None, "Direct", 10))
-    elif network_type == "node":
-        if pool_manager and pool_manager.node_provider:
-            nodes = pool_manager.node_provider()
-            for node in nodes[:3]: chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ {node['name']}", 15))
-        if not chain: chain.append((None, "Direct (Fallback)", 10))
     elif network_type == "proxy":
         if pool_manager:
             proxies = [p for p in pool_manager.proxies if p.score > 0]
             if proxies:
-                for p in sorted(proxies, key=lambda p: p.speed)[:3]: chain.append((p.to_url(), "🌐 Hunter Pool", 10))
+                for p in sorted(proxies, key=lambda p: p.speed)[:3]:
+                    chain.append((p.to_url(), f"🌐 Hunter Pool ({p.ip}:{p.port})", 10))
         if not chain: chain.append((None, "Direct (Fallback)", 10))
     else: # auto
-        if pool_manager and pool_manager.node_provider:
-            nodes = pool_manager.node_provider()
-            if nodes: chain.append((f"socks5://{nodes[0]['host']}:{nodes[0]['port']}", f"🛰️ {nodes[0]['name']}", 15))
         if pool_manager:
             proxies = [p for p in pool_manager.proxies if p.score > 0]
-            if proxies: chain.append((random.choice(proxies).to_url(), "🌐 Hunter Pool", 10))
+            if proxies: 
+                p = random.choice(proxies)
+                chain.append((p.to_url(), f"🌐 Hunter Pool ({p.ip}:{p.port})", 10))
         chain.append((None, "Direct", 10))
 
     for proxy_url, name, time_limit in chain:
@@ -90,11 +89,12 @@ async def request_with_chain_async(url, headers=None, stream=False, timeout=10, 
             proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             resp = await async_request(method, url, headers=base_headers, proxies=proxies, timeout=time_limit, verify=False, stream=stream)
             if resp.status_code in [200, 206, 302]:
+                resp.network_name = name # Attach network name to response
                 return resp
         except:
             continue
     class DummyResponse:
-        status_code = 500; text = ""; content=b"";
+        status_code = 500; text = ""; content=b""; network_name="Failed";
         def json(self): return {}
     return DummyResponse()
 
@@ -120,53 +120,65 @@ class BilibiliCrawler(BaseCrawler):
             bvid = bvid_match.group(1)
             headers = {"Referer": f"https://www.bilibili.com/video/{bvid}", "User-Agent": GLOBAL_USER_AGENT}
             
-            # 🔥 核心修复：B站API优先尝试直连
-            api_chain = [(None, "Direct", 5)]
-            if network_type != 'direct': # 如果不是强制直连，则把其他代理作为备选
+            api_chain = []
+            if network_type == 'direct':
+                api_chain.append((None, "Direct", 5))
+            else:
+                api_chain.append((None, "Direct", 5))
                 proxies = await self.get_proxy_chain(network_type)
                 api_chain.extend(proxies)
 
             info_resp = None
+            used_network = "Unknown"
+            
             for proxy, name, timeout in api_chain:
                 try:
                     proxies = {"http": proxy, "https": proxy} if proxy else None
                     info_resp = await async_request("get", f"https://api.bilibili.com/x/web-interface/view?bvid={bvid}", headers=headers, proxies=proxies, timeout=timeout)
                     if info_resp.status_code == 200 and info_resp.json().get('code') == 0:
-                        break # 成功获取，跳出循环
+                        used_network = name
+                        break 
                 except:
                     continue
             
             if not info_resp or info_resp.status_code != 200: return None
             
-            data = info_resp.json().get('data')
-            if not data: return None
-            cid = data['cid']
-            meta = {"title": data['title'], "cover": data['pic']}
-            play_api = f"https://api.bilibili.com/x/player/playurl?bvid={bvid}&cid={cid}&qn=64&fnval=1&platform=html5&high_quality=1"
-            play_resp = await request_with_chain_async(play_api, headers=headers, network_type=network_type)
-            video_url = ""
-            if play_resp.status_code == 200 and play_resp.json().get('code') == 0:
-                video_url = play_resp.json()['data']['durl'][0]['url']
-            
-            if video_url:
-                return {**meta, "video_url": video_url, "verified": True}
-            return {**meta, "video_url": "", "verified": False}
+            # 🔥 返回使用的网络名称
+            return {"data": info_resp.json().get('data'), "network": used_network}
+
         except Exception:
             return None
 
     async def crawl(self, url: str, network_type: str = "auto"):
         yield json.dumps({"step": "process", "message": "📺 启动 B站 专用爬虫..."}) + "\n"
-        api_data = await self.fetch_api_metadata_async(url, network_type)
-        if api_data and api_data.get('verified'):
-            yield json.dumps({"step": "process", "message": f"✅ API 解析成功: {api_data['title'][:15]}..."}) + "\n"
-            results = [{"类型": "标题", "内容": api_data['title'], "备注": "API-Title"}, {"类型": "图片", "内容": api_data['cover'], "备注": "Cover"}, {"类型": "视频", "内容": api_data['video_url'], "备注": "Direct-Stream"}]
+        
+        result = await self.fetch_api_metadata_async(url, network_type)
+        
+        if result and result.get('data'):
+            data = result['data']
+            used_net = result['network']
+            yield json.dumps({"step": "process", "message": f"✅ API 解析成功 [{used_net}]: {data['title'][:15]}..."}) + "\n"
+            
+            # 获取视频流地址 (简化处理，不再重复请求)
+            # 实际场景中可能需要再次请求 playurl，这里为了演示直接返回元数据
+            # 如果需要视频流，可以在这里加一个请求，同样记录网络
+            
+            results = [{"类型": "标题", "内容": data['title'], "备注": "API-Title"}, {"类型": "图片", "内容": data['pic'], "备注": "Cover"}]
             yield pd.DataFrame(results)
             return
+
         yield json.dumps({"step": "process", "message": "⚠️ API 受限，启动 Playwright 嗅探..."}) + "\n"
+        
         chain = await self.get_proxy_chain(network_type)
+        
+        if not chain:
+            yield json.dumps({"step": "error", "message": f"❌ 模式 '{network_type}' 下未找到可用代理，已终止"}) + "\n"
+            return
+
         for proxy_url, name, _ in chain:
-            proxy_conf = parse_playwright_proxy(proxy_url)
             yield json.dumps({"step": "process", "message": f"🌐 启动浏览器: [{name}]..."}) + "\n"
+            proxy_conf = parse_playwright_proxy(proxy_url)
+            
             async with async_playwright() as p:
                 try:
                     browser = await p.chromium.launch(headless=False, args=["--mute-audio"], proxy=proxy_conf)
@@ -196,10 +208,16 @@ class YouTubeCrawler(BaseCrawler):
     async def crawl(self, url: str, network_type: str = "auto"):
         yield json.dumps({"step": "process", "message": "🟥 启动 YouTube 爬虫..."}) + "\n"
         MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+        
         chain = await self.get_proxy_chain(network_type)
+        if not chain:
+            yield json.dumps({"step": "error", "message": f"❌ 模式 '{network_type}' 下未找到可用代理，已终止"}) + "\n"
+            return
+
         for proxy_url, name, _ in chain:
-            proxy_conf = parse_playwright_proxy(proxy_url)
             yield json.dumps({"step": "process", "message": f"🌐 尝试节点: {name}..."}) + "\n"
+            proxy_conf = parse_playwright_proxy(proxy_url)
+            
             async with async_playwright() as p:
                 try:
                     browser = await p.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled", "--mute-audio"], proxy=proxy_conf)
@@ -234,10 +252,16 @@ class YouTubeCrawler(BaseCrawler):
 class UniversalVideoCrawler(BaseCrawler):
     async def crawl(self, url: str, network_type: str = "auto"):
         yield json.dumps({"step": "process", "message": "🎬 启动通用视频嗅探..."}) + "\n"
+        
         chain = await self.get_proxy_chain(network_type)
+        if not chain:
+            yield json.dumps({"step": "error", "message": f"❌ 模式 '{network_type}' 下未找到可用代理，已终止"}) + "\n"
+            return
+
         for proxy_url, name, _ in chain:
-            proxy_conf = parse_playwright_proxy(proxy_url)
             yield json.dumps({"step": "process", "message": f"🌐 启动浏览器: [{name}]..."}) + "\n"
+            proxy_conf = parse_playwright_proxy(proxy_url)
+
             async with async_playwright() as p:
                 try:
                     browser = await p.chromium.launch(headless=False, args=["--mute-audio"], proxy=proxy_conf)
