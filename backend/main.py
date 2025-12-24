@@ -1,80 +1,15 @@
 # backend/main.py
 import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+import os
+import sys
 
-# 引入各个模块的路由
-from alchemy_engine import router as alchemy_router
-from proxy_engine import router as proxy_router
-from node_hunter import router as node_router
-from cyber_range import router as cyber_router
-from eagle_eye import router as eagle_router
-from crawler_engine import router as crawler_router
-from proxy_engine import manager as pool_manager
-from data_refinery import router as refinery_router
-from generator_engine import router as generator_router
-from game_engine import router as game_router
-from shodan_engine import router as shodan_router # 🔥 新增 Shodan 模块
-
-load_dotenv()
-
-app = FastAPI(title="Cyber Range API")
-
-# CORS 配置
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 🔥🔥🔥 关键：启动时激活代理池自动巡检 🔥🔥🔥
-@app.on_event("startup")
-async def startup_event():
-    # 启动代理池管理器
-    if pool_manager:
-        pool_manager.start()
-        print("🚀 [System] 代理池引擎已独立启动 (自动维护模式)")
-    else:
-        print("⚠️ [System] 代理池管理器未加载")
-
-@app.get("/")
-def read_root():
-    return {"message": "Cyber Range API", "status": "running"}
-
-# ==================== 路由注册 ====================
-
-# 1. 代理池管理
-app.include_router(proxy_router)
-
-# 2. 节点猎手 (V2Ray/Clash)
-app.include_router(node_router)
-
-# 3. 爬虫引擎 (极速/深度/视频流)
-app.include_router(crawler_router)
-
-# 4. 炼金工坊 (数据清洗)
-app.include_router(alchemy_router)
-
-# 5. 网络靶场 (模拟训练)
-app.include_router(cyber_router)
-
-# 6. Eagle Eye (资产审计)
-app.include_router(eagle_router)
-
-# 7. DataRefinery (数据炼油厂)
-app.include_router(refinery_router)
-
-# 8. 代码生成器
-app.include_router(generator_router)
-
-# 9. 游戏生成器
-app.include_router(game_router)
-
-# 10. Shodan 引擎
-app.include_router(shodan_router)
+# This is the directory containing 'main.py' and the 'app/' package.
+# It needs to be on the Python path for imports like 'from app.main...' to work.
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+if APP_ROOT not in sys.path:
+    sys.path.insert(0, APP_ROOT)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # The 'reload_dirs' argument tells the reloader to watch our project directory.
+    # The string "app.main:app" tells uvicorn where to find the FastAPI app instance.
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True, reload_dirs=[os.path.join(APP_ROOT, 'app')])

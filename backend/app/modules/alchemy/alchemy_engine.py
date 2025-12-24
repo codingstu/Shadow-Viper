@@ -1,4 +1,4 @@
-# backend/alchemy_engine.py
+# backend/app/modules/alchemy/alchemy_engine.py
 import json
 import asyncio
 import re
@@ -6,9 +6,9 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# 引入流式和普通调用
+# 引入流式和普通调用 (相对导入)
 try:
-    from ai_hub import call_ai, call_ai_stream_async
+    from ...core.ai_hub import call_ai, call_ai_stream_async
 except ImportError:
     call_ai = None
     call_ai_stream_async = None

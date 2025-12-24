@@ -1,14 +1,16 @@
-# backend/ai_hub.py
+# backend/app/core/ai_hub.py
 import json
 import os
 import requests
 from dotenv import load_dotenv
 import httpx
 
-try:
-    from proxy_engine import manager as pool_manager
-except ImportError:
-    pool_manager = None
+# 延迟导入，避免循环依赖
+pool_manager = None
+
+def set_pool_manager(manager):
+    global pool_manager
+    pool_manager = manager
 
 load_dotenv()
 

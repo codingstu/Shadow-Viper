@@ -1,4 +1,4 @@
-# backend/game_engine.py
+# backend/app/modules/game/game_engine.py
 import re
 import json
 import sqlite3
@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 
 try:
-    # 引入新的异步流式函数
-    from ai_hub import call_ai_stream_async
+    # 引入新的异步流式函数 (相对导入)
+    from ...core.ai_hub import call_ai_stream_async
 except ImportError:
     call_ai_stream_async = None
 

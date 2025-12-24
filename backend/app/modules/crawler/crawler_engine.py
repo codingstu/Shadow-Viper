@@ -1,4 +1,4 @@
-# backend/crawler_engine.py
+# backend/app/modules/crawler/crawler_engine.py
 import asyncio
 import json
 import re
@@ -6,7 +6,7 @@ import pandas as pd
 import time
 import random
 import os
-import requests  # 🔥 坚定回归 Requests
+import requests
 from urllib.parse import quote, unquote, urlparse, urljoin
 from fastapi import APIRouter, Response, Request
 from fastapi.responses import StreamingResponse, FileResponse
@@ -16,9 +16,9 @@ from playwright.async_api import async_playwright, Route
 from dotenv import load_dotenv
 from abc import ABC, abstractmethod
 
-# 引入代理池管理器
+# 引入代理池管理器 (相对导入)
 try:
-    from proxy_engine import manager as pool_manager
+    from ..proxy.proxy_engine import manager as pool_manager
 except ImportError:
     pool_manager = None
 
@@ -27,7 +27,6 @@ load_dotenv()
 router = APIRouter(tags=["crawler"])
 
 # ==================== 全局配置 ====================
-# 🔥 升级：更真实的浏览器指纹，对抗 403
 GLOBAL_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 GLOBAL_COOKIE_JAR = {}
 
@@ -50,7 +49,7 @@ def is_video_site(url: str) -> bool:
     return any(site in url.lower() for site in VIDEO_SITES)
 
 
-# ==================== 🚀 核心修复：异步线程包裹 Requests ====================
+# ==================== 异步线程包裹 Requests ====================
 async def async_request(method, url, **kwargs):
     """
     🔥 魔法函数：在异步环境中使用 requests 而不卡死服务器
@@ -579,9 +578,16 @@ async def proxy_stream(url: str, request: Request):
         "Connection": "keep-alive"
     })
 
+    # 🔥 优化：B站视频流优先直连，因为 B站 CDN 通常不屏蔽 IP，只检查 Referer
     chain = []
-    if pool_manager: chain = pool_manager.get_standard_chain()
-    chain.append((None, "Direct", 10))
+    if "bilivideo.com" in domain or "bilibili" in domain:
+        chain.append((None, "Direct", 10)) # B站优先直连
+    
+    if pool_manager:
+        chain.extend(pool_manager.get_standard_chain())
+    
+    if not chain: # 如果没有代理池且不是B站，至少加个直连
+        chain.append((None, "Direct", 10))
 
     for proxy_url, name, timeout_sec in chain:
         try:

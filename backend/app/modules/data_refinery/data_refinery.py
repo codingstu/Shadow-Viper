@@ -1,4 +1,4 @@
-# backend/data_refinery.py
+# backend/app/modules/data_refinery/data_refinery.py
 import asyncio
 import json
 import pandas as pd
@@ -8,20 +8,20 @@ import time
 import random
 import os
 import aiohttp
-from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
-from typing import List, Optional, Dict, Any, Generator
+from typing import List, Generator
 from abc import ABC, abstractmethod
 
-# 1. 引入代理池 (用于链接验证)
+# 1. 引入代理池 (用于链接验证) - 相对导入
 try:
-    from proxy_engine import manager as pool_manager
+    from ..proxy.proxy_engine import manager as pool_manager
 except ImportError:
     pool_manager = None
 
-# 2. 🔥 引入 AI 中枢 (用于真实 AI 分析)
+# 2. 🔥 引入 AI 中枢 (用于真实 AI 分析) - 相对导入
 try:
-    from ai_hub import call_ai_async
+    from ...core.ai_hub import call_ai_async
 except ImportError:
     call_ai_async = None
 
@@ -149,7 +149,6 @@ class AISentimentAnalyst(BaseProcessor):
 
         yield json.dumps({"step": "ai_init", "msg": "🧠 正在调用 LLM 进行深度内容分析..."}) + "\n"
 
-        # 定义 System Prompt (强制 JSON 输出)
         system_prompt = (
             "You are a Data Analyst. Analyze the content provided by the user.\n"
             "Return a JSON object with two keys:\n"
@@ -161,63 +160,46 @@ class AISentimentAnalyst(BaseProcessor):
         tags = []
         scores = []
         total = len(ctx.df)
-
-        # 限制处理数量，防止 Token 爆炸 (demo 限制前 20 条，生产环境可去掉)
         process_limit = 20
         if total > process_limit:
             yield json.dumps({"step": "ai_warn", "msg": f"⚠️ 为节省 Token，仅分析前 {process_limit} 条数据"}) + "\n"
 
-        # 🔥 优化：使用 asyncio.gather 并发调用 AI，而不是串行
-        # 注意：并发过高可能会触发 API 速率限制，这里设置 Semaphore
-        sem = asyncio.Semaphore(5) # 限制并发数为 5
+        sem = asyncio.Semaphore(5)
 
         async def analyze_row(row_idx, text):
             async with sem:
                 try:
-                    # 🔥 真实调用 AI Hub (异步)
-                    ai_resp = await call_ai_async(system_prompt, str(text)[:300])  # 截断防止太长
-
-                    # 清洗 JSON
+                    ai_resp = await call_ai_async(system_prompt, str(text)[:300])
                     clean_json = ai_resp.replace("```json", "").replace("```", "").strip()
                     data = json.loads(clean_json)
                     return row_idx, data.get("tag", "Unknown"), data.get("score", 0)
-                except Exception as e:
+                except:
                     return row_idx, "Error", 0
 
         tasks = []
         for i, row in enumerate(ctx.df.itertuples()):
             if i >= process_limit:
-                tags.append("Skipped")
-                scores.append(0)
+                tags.append("Skipped"); scores.append(0)
                 continue
-
             text_content = getattr(row, target_col, "")
             if not text_content or len(str(text_content)) < 2:
-                tags.append("Empty")
-                scores.append(0)
+                tags.append("Empty"); scores.append(0)
                 continue
-            
-            # 占位，稍后填充
-            tags.append(None)
-            scores.append(None)
+            tags.append(None); scores.append(None)
             tasks.append(analyze_row(i, text_content))
 
-        # 执行并发任务
         processed_count = 0
         total_tasks = len(tasks)
         
         for f in asyncio.as_completed(tasks):
             idx, tag, score = await f
-            tags[idx] = tag
-            scores[idx] = score
-            
+            tags[idx] = tag; scores[idx] = score
             processed_count += 1
             yield json.dumps({"step": "ai_thinking", "progress": int((processed_count / total_tasks) * 100),
                                   "msg": f"AI 分析中: {tag} ({score})"}) + "\n"
 
         ctx.df['AI_Tag'] = tags
         ctx.df['AI_Score'] = scores
-
         yield json.dumps({"step": "ai_done", "msg": "✨ AI 智能分析任务完成"}) + "\n"
 
 
@@ -237,42 +219,27 @@ class RefineryEngine:
 
         total_steps = len(self.processors)
         for i, processor in enumerate(self.processors):
-            yield json.dumps({"step": "phase_start", "phase": processor.name,
-                              "msg": f"➡️ 工序 [{i + 1}/{total_steps}]: {processor.name}"}) + "\n"
+            yield json.dumps({"step": "phase_start", "phase": processor.name, "msg": f"➡️ 工序 [{i + 1}/{total_steps}]: {processor.name}"}) + "\n"
             async for log in processor.process(ctx): yield log
-
-            # 推送预览
             try:
-                # 解决 NaN 无法 JSON 序列化的问题
                 preview_df = ctx.df.head(5).replace({np.nan: None})
                 preview = preview_df.to_dict(orient='records')
-                yield json.dumps({"step": "phase_preview", "columns": list(ctx.df.columns), "preview": preview,
-                                  "msg": f"📊 {processor.name} 完成"}) + "\n"
+                yield json.dumps({"step": "phase_preview", "columns": list(ctx.df.columns), "preview": preview, "msg": f"📊 {processor.name} 完成"}) + "\n"
             except:
                 pass
-
             await asyncio.sleep(0.5)
 
         filename = f"refined_{int(time.time())}.csv"
         filepath = os.path.abspath(filename)
         ctx.df.to_csv(filepath, index=False, encoding="utf-8-sig")
 
-        yield json.dumps({
-            "step": "done",
-            "download_url": f"http://127.0.0.1:8000/download/{filename}",
-            "final_count": len(ctx.df),
-            "msg": "🎉 处理完毕"
-        }) + "\n"
+        yield json.dumps({"step": "done", "download_url": f"http://127.0.0.1:8000/download/{filename}", "final_count": len(ctx.df), "msg": "🎉 处理完毕"}) + "\n"
 
 
 # ==================== API ====================
 
 @router.post("/process")
-async def process_data(
-        file: UploadFile = File(...),
-        enable_ai: bool = Form(False),
-        enable_network: bool = Form(False)
-):
+async def process_data(file: UploadFile = File(...), enable_ai: bool = Form(False), enable_network: bool = Form(False)):
     contents = await file.read()
     try:
         df = pd.read_csv(io.BytesIO(contents))
