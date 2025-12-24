@@ -10,11 +10,12 @@ from proxy_engine import router as proxy_router
 from node_hunter import router as node_router
 from cyber_range import router as cyber_router
 from eagle_eye import router as eagle_router
-from crawler_engine import router as crawler_router  # 🔥 新增模块
-from proxy_engine import manager as pool_manager  # 🔥 引入管理器
+from crawler_engine import router as crawler_router
+from proxy_engine import manager as pool_manager
 from data_refinery import router as refinery_router
 from generator_engine import router as generator_router
-from game_engine import router as game_router # 🔥 新增
+from game_engine import router as game_router
+from shodan_engine import router as shodan_router # 🔥 新增 Shodan 模块
 
 load_dotenv()
 
@@ -31,9 +32,13 @@ app.add_middleware(
 
 # 🔥🔥🔥 关键：启动时激活代理池自动巡检 🔥🔥🔥
 @app.on_event("startup")
-# async def startup_event():
-    # pool_manager.start()
-    # print("🚀 [System] 代理池引擎已独立启动 (自动维护模式)")
+async def startup_event():
+    # 启动代理池管理器
+    if pool_manager:
+        pool_manager.start()
+        print("🚀 [System] 代理池引擎已独立启动 (自动维护模式)")
+    else:
+        print("⚠️ [System] 代理池管理器未加载")
 
 @app.get("/")
 def read_root():
@@ -62,9 +67,14 @@ app.include_router(eagle_router)
 # 7. DataRefinery (数据炼油厂)
 app.include_router(refinery_router)
 
+# 8. 代码生成器
 app.include_router(generator_router)
 
+# 9. 游戏生成器
 app.include_router(game_router)
+
+# 10. Shodan 引擎
+app.include_router(shodan_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

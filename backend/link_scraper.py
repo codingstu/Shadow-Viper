@@ -28,7 +28,7 @@ class LinkScraper:
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         ]
 
-        # 正则模式 (保持不变)
+        # 正则模式
         self.patterns = {
             'vmess': r'(vmess://[A-Za-z0-9+/=\-]+)',
             'vless': r'(vless://[^\s"\']+)',
@@ -103,8 +103,6 @@ class LinkScraper:
                 continue
 
         return {'valid': False, 'error': "All connections failed"}
-
-    # ... (以下辅助方法保持不变：extract_links_from_html, extract_links_from_text, validate_node_content 等) ...
 
     async def extract_links_from_html(self, html: str, base_url: str) -> List[str]:
         links = []

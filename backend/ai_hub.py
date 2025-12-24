@@ -1,9 +1,9 @@
 # backend/ai_hub.py
 import json
 import os
-import httpx  # 必须安装: pip install httpx
 import requests
 from dotenv import load_dotenv
+import httpx
 
 try:
     from proxy_engine import manager as pool_manager

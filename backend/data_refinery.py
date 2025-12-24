@@ -21,9 +21,9 @@ except ImportError:
 
 # 2. 🔥 引入 AI 中枢 (用于真实 AI 分析)
 try:
-    from ai_hub import call_ai
+    from ai_hub import call_ai_async
 except ImportError:
-    call_ai = None
+    call_ai_async = None
 
 router = APIRouter(prefix="/api/refinery", tags=["refinery"])
 
@@ -143,7 +143,7 @@ class AISentimentAnalyst(BaseProcessor):
             yield json.dumps({"step": "skip", "msg": "⏩ 未找到文本列，跳过 AI 分析"}) + "\n"
             return
 
-        if not call_ai:
+        if not call_ai_async:
             yield json.dumps({"step": "error", "msg": "❌ AI 模块未加载，请检查配置"}) + "\n"
             return
 
@@ -167,6 +167,24 @@ class AISentimentAnalyst(BaseProcessor):
         if total > process_limit:
             yield json.dumps({"step": "ai_warn", "msg": f"⚠️ 为节省 Token，仅分析前 {process_limit} 条数据"}) + "\n"
 
+        # 🔥 优化：使用 asyncio.gather 并发调用 AI，而不是串行
+        # 注意：并发过高可能会触发 API 速率限制，这里设置 Semaphore
+        sem = asyncio.Semaphore(5) # 限制并发数为 5
+
+        async def analyze_row(row_idx, text):
+            async with sem:
+                try:
+                    # 🔥 真实调用 AI Hub (异步)
+                    ai_resp = await call_ai_async(system_prompt, str(text)[:300])  # 截断防止太长
+
+                    # 清洗 JSON
+                    clean_json = ai_resp.replace("```json", "").replace("```", "").strip()
+                    data = json.loads(clean_json)
+                    return row_idx, data.get("tag", "Unknown"), data.get("score", 0)
+                except Exception as e:
+                    return row_idx, "Error", 0
+
+        tasks = []
         for i, row in enumerate(ctx.df.itertuples()):
             if i >= process_limit:
                 tags.append("Skipped")
@@ -178,25 +196,24 @@ class AISentimentAnalyst(BaseProcessor):
                 tags.append("Empty")
                 scores.append(0)
                 continue
+            
+            # 占位，稍后填充
+            tags.append(None)
+            scores.append(None)
+            tasks.append(analyze_row(i, text_content))
 
-            try:
-                # 🔥 真实调用 AI Hub
-                ai_resp = call_ai(system_prompt, str(text_content)[:300])  # 截断防止太长
-
-                # 清洗 JSON
-                clean_json = ai_resp.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json)
-
-                tags.append(data.get("tag", "Unknown"))
-                scores.append(data.get("score", 0))
-
-                yield json.dumps({"step": "ai_thinking", "progress": int(((i + 1) / process_limit) * 100),
-                                  "msg": f"AI 分析中: {data.get('tag')} ({data.get('score')})"}) + "\n"
-
-            except Exception as e:
-                tags.append("Error")
-                scores.append(0)
-                # yield json.dumps({"step": "ai_error", "msg": f"AI 分析失败: {str(e)[:30]}"}) + "\n"
+        # 执行并发任务
+        processed_count = 0
+        total_tasks = len(tasks)
+        
+        for f in asyncio.as_completed(tasks):
+            idx, tag, score = await f
+            tags[idx] = tag
+            scores[idx] = score
+            
+            processed_count += 1
+            yield json.dumps({"step": "ai_thinking", "progress": int((processed_count / total_tasks) * 100),
+                                  "msg": f"AI 分析中: {tag} ({score})"}) + "\n"
 
         ctx.df['AI_Tag'] = tags
         ctx.df['AI_Score'] = scores

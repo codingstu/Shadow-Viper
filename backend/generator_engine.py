@@ -51,9 +51,9 @@ def build_architect_prompt(requirement):
         f"You are a Senior Frontend Architect. Create a Single Page Application (SPA) based on: '{requirement}'.\n"
         "Technical Constraints:\n"
         "1. Output ONE single HTML file containing CSS (Bootstrap 5) and JS (Vue 3).\n"
-        # 🔥 修正点：必须是纯净的 HTML 属性，不能有 Markdown 标记
-"2. Use <script src='https://unpkg.com/vue@3/dist/vue.global.js'></script>\n"
-"3. Use <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>\n"        "4. No backend calls. Mock all data in `data()`.\n"
+        "2. Use <script src='https://unpkg.com/vue@3/dist/vue.global.js'></script>\n"
+        "3. Use <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>\n"
+        "4. No backend calls. Mock all data in `data()`.\n"
         "5. Persistence: Use `localStorage` in `mounted()` and `watch`.\n"
         "6. PREVENT RELOAD: Use `@submit.prevent` on forms.\n"
         "Output ONLY the raw HTML code."
@@ -62,7 +62,7 @@ def build_architect_prompt(requirement):
 
 @router.post("/generate_app")
 async def generate_app_stream(req: AppRequest):
-    if not call_ai_stream:
+    if not call_ai_stream_async:
         return StreamingResponse(iter(["Error: AI Hub missing"]), status_code=500)
 
     prompt = build_architect_prompt(req.requirement)
@@ -71,7 +71,7 @@ async def generate_app_stream(req: AppRequest):
         full_raw_code = ""
 
         # 流式生成
-        for chunk in call_ai_stream("Output valid HTML only.", prompt, model="deepseek-ai/DeepSeek-V3",
+        async for chunk in call_ai_stream_async("Output valid HTML only.", prompt, model="deepseek-ai/DeepSeek-V3",
                                     temperature=0.1):
             full_raw_code += chunk
             # 发送代码片段
@@ -97,8 +97,6 @@ async def generate_app_stream(req: AppRequest):
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
-# ... (Get History, Load, Delete 接口保持不变，省略以节省篇幅，请保留原文件下半部分) ...
-# 为了确保代码完整，建议你保留下面原有的 GET/DELETE 接口
 @router.get("/history")
 async def get_history():
     conn = sqlite3.connect(DB_FILE)

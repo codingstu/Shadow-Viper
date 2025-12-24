@@ -6,3 +6,25 @@ __pycache__/
 *.pyd
 .Python
 *.log
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# OS
+.DS_Store
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+
+# Runtime/Generated Data
+valid_proxies.json
+data_*.csv
+apps_storage.db
+valid_proxies.json

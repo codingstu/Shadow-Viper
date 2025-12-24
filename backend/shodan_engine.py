@@ -3,7 +3,20 @@ import shodan
 import asyncio
 from datetime import datetime
 from typing import List, Dict
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# 🔥 修复：定义 APIRouter
+router = APIRouter(prefix="/api/shodan", tags=["shodan"])
+
+class ShodanSearchRequest(BaseModel):
+    query: str
+    limit: int = 20
+    api_key: str = ""  # 可选，如果不传则使用环境变量
 
 class ShodanHunter:
     def __init__(self, api_key: str):
@@ -59,7 +72,20 @@ class ShodanHunter:
             print(f"System Error: {e}")
             return []
 
-# 测试用的 (你需要填入你自己的 Key)
-# if __name__ == "__main__":
-#     hunter = ShodanHunter("YOUR_SHODAN_API_KEY")
-#     print(hunter.search_camera("Server: Hikvision-Webs", 5))
+# ==================== API 接口 ====================
+
+@router.post("/search")
+async def search_shodan(req: ShodanSearchRequest):
+    # 优先使用请求中的 Key，其次使用环境变量
+    api_key = req.api_key or os.getenv("SHODAN_API_KEY")
+    
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Missing Shodan API Key")
+
+    hunter = ShodanHunter(api_key)
+    
+    # 在线程池中运行同步的 Shodan API 调用，避免阻塞
+    loop = asyncio.get_running_loop()
+    results = await loop.run_in_executor(None, hunter.search_camera, req.query, req.limit)
+    
+    return {"count": len(results), "results": results}

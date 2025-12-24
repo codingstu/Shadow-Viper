@@ -315,7 +315,7 @@ async def get_status():
         "logs": eagle.logs[:100],
         "results": eagle.results,
         "identity": eagle.identity,
-        "active_chain": [f"{item[1]}" for item in pool_manager.get_standard_chain()]
+        "active_chain": [f"{item[1]}" for item in pool_manager.get_standard_chain()] if pool_manager else []
     }
 
 

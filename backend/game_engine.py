@@ -8,9 +8,10 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 
 try:
-    from ai_hub import call_ai_stream
+    # 引入新的异步流式函数
+    from ai_hub import call_ai_stream_async
 except ImportError:
-    call_ai_stream = None
+    call_ai_stream_async = None
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -35,7 +36,7 @@ def build_game_architect_prompt(requirement):
     return (
         f"You are a Senior Game Architect. Build a SINGLE FILE HTML game using Phaser 3: '{requirement}'.\n"
         "Technical Stack:\n"
-        "1. Library: <script src='[https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js](https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js)'></script>\n"
+        "1. Library: <script src='https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js'></script>\n"
         "2. Architecture: Class-based `GameScene extends Phaser.Scene`.\n"
         "\n"
         "🔥🔥🔥 MANDATORY CODE PATTERNS (COPY THESE) 🔥🔥🔥\n"
@@ -87,7 +88,7 @@ def build_game_architect_prompt(requirement):
 
 @router.post("/generate")
 async def generate_game_stream(req: GameRequest):
-    if not call_ai_stream:
+    if not call_ai_stream_async:
         return StreamingResponse(iter(["Error: AI Hub missing"]), status_code=500)
 
     prompt = build_game_architect_prompt(req.requirement)
@@ -95,7 +96,7 @@ async def generate_game_stream(req: GameRequest):
     async def event_stream():
         full_raw_code = ""
         # 温度 0.1，让它严格照抄模板
-        for chunk in call_ai_stream("Output valid HTML only.", prompt, model="deepseek-ai/DeepSeek-V3",
+        async for chunk in call_ai_stream_async("Output valid HTML only.", prompt, model="deepseek-ai/DeepSeek-V3",
                                     temperature=0.1):
             full_raw_code += chunk
             yield json.dumps({"type": "chunk", "content": chunk}) + "\n"
