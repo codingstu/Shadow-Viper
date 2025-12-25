@@ -76,10 +76,10 @@
   const gameHistory = computed(() => historyList.value.filter(item => item.full_req.startsWith('[GAME]')));
 
   // 🔥🔥🔥 核心修复：这里必须是纯 URL，不能带 []() 🔥🔥🔥
-  const API_BASE = 'http://127.0.0.1:8000/api/game';
-  const HISTORY_API = 'http://127.0.0.1:8000/api/generator/history';
-  const LOAD_API = 'http://127.0.0.1:8000/api/generator/load';
-  const DELETE_API = 'http://127.0.0.1:8000/api/generator/delete';
+  const API_BASE = `${import.meta.env.VITE_API_BASE_URL}/api/game`; // 🔥 修改
+  const HISTORY_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/history`; // 🔥 修改
+  const LOAD_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/load`; // 🔥 修改
+  const DELETE_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/delete`; // 🔥 修改
 
   onMounted(() => fetchHistory());
 

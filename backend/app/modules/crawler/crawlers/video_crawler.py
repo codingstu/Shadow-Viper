@@ -48,7 +48,7 @@ class BaseCrawler(ABC):
         if network_type == "direct":
             return None, "Direct"
 
-        if self.pool_manager and network_type in ["proxy", "auto", "node"]:
+        if self.pool_manager and network_type in ["proxy", "auto"]:
             alive_nodes = [p for p in self.pool_manager.proxies if p.score > 0]
             if alive_nodes:
                 p = random.choice(alive_nodes[:10])

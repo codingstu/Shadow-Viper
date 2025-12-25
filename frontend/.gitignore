@@ -4,6 +4,7 @@ node_modules/
 # Production
 dist/
 
+ # Environment variables
 # Misc
 .DS_Store
 .env
@@ -28,3 +29,13 @@ yarn-error.log*
 
 # Vite
 .vite/
+
+.env.*
+ !.env.example
+ !.env.development
+
+ # Local
+ .DS_Store
+ dist
+ dist-ssr
+ *.local

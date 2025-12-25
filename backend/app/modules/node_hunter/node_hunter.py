@@ -56,7 +56,7 @@ class NodeHunter:
         if not self.scheduler.running:
             self.scheduler.add_job(self.scan_cycle, 'interval', minutes=10, id='node_scan_refresh')
             self.scheduler.start()
-            self.add_log("✅ [System] 节点猎手自动巡航已启动 (10min/cycle)", "SUCCESS")
+            self.add_log("✅ [System] Shadow Matrix 自动巡航已启动 (10min/cycle)", "SUCCESS")
             asyncio.create_task(self.scan_cycle())
 
     def get_alive_nodes(self) -> List[Dict[str, Any]]:

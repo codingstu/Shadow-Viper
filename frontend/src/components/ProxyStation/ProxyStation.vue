@@ -2,7 +2,7 @@
   <div class="proxy-station">
     <div class="header-section">
       <div class="title-group">
-        <h1>🌐 代理猎手池 <span class="version">v1.3 HTTPS版</span></h1>
+        <h1>🌐 猎手 IP 池 <span class="version">v1.3 HTTPS版</span></h1>
         <p>基于付费通道的全球免费代理采集与清洗系统</p>
       </div>
       <div class="status-cards">
@@ -115,10 +115,10 @@ const formatTime = (timeStr) => {
 
 const fetchData = async () => {
   try {
-    const resStats = await fetch('http://127.0.0.1:8000/api/proxy_pool/stats');
+    const resStats = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/stats`); // 🔥 修改
     stats.value = await resStats.json();
 
-    const resList = await fetch('http://127.0.0.1:8000/api/proxy_pool/list');
+    const resList = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/list`); // 🔥 修改
     proxyList.value = await resList.json();
   } catch (e) {
     console.error("API Error", e);
@@ -128,19 +128,19 @@ const fetchData = async () => {
 const triggerTask = async () => {
   if (stats.value.running) return;
   try {
-    await fetch('http://127.0.0.1:8000/api/proxy_pool/trigger', { method: 'POST' });
+    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/trigger`, { method: 'POST' }); // 🔥 修改
     fetchData();
   } catch (e) { alert("连接后端失败"); }
 };
 
-// 🔥 清空池子
 const cleanPool = async () => {
   if (!confirm("确定要清空所有代理吗？")) return;
   try {
-    await fetch('http://127.0.0.1:8000/api/proxy_pool/clean', { method: 'DELETE' });
+    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/clean`, { method: 'DELETE' }); // 🔥 修改
     fetchData();
   } catch (e) { alert("清空失败"); }
 };
+
 
 onMounted(() => {
   fetchData();

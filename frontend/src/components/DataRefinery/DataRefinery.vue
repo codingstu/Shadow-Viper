@@ -245,7 +245,7 @@
     formData.append('enable_ai', config.value.enableAI)
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/refinery/process', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/refinery/process`, { // 🔥 修改
         method: 'POST',
         body: formData
       })

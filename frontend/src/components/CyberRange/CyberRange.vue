@@ -154,7 +154,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import axios from 'axios';
 
 // 基础配置
-const apiBaseUrl = ref('http://127.0.0.1:8000');
+const apiBaseUrl = ref(import.meta.env.VITE_API_BASE_URL); // 🔥 修改
 const showConfigPanel = ref(false);
 const isProcessing = ref(false);
 const consoleRef = ref(null);

@@ -76,8 +76,8 @@
   const viewMode = ref('preview');
   const codeTextarea = ref(null);
 
-  const API_BASE = 'http://127.0.0.1:8000/api/generator';
-
+  const API_BASE = `${import.meta.env.VITE_API_BASE_URL}/api/generator`; // 🔥 修改
+  
   onMounted(() => fetchHistory());
 
   // 自动滚动代码到底部，像黑客终端一样

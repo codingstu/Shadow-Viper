@@ -191,7 +191,7 @@ const getCurrentTime = () => new Date().toLocaleTimeString();
 
 const proxyUrl = (url) => {
   if (!url || url === 'No Cover') return '';
-  return `http://127.0.0.1:8000/api/proxy?url=${encodeURIComponent(url)}`;
+  return `${import.meta.env.VITE_API_BASE_URL}/api/proxy?url=${encodeURIComponent(url)}`; // 🔥 修改
 };
 
 const initVideoPlayer = (videoEl, originalUrl) => {
@@ -237,7 +237,8 @@ const startCrawl = async () => {
   logs.value.push({ time: getCurrentTime(), text: `🚀 启动 Viper 引擎 [${crawlMode.value}] [Net: ${networkType.value}]...`, type: 'info' });
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/crawl', {
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/crawl`;
+      const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -279,7 +280,6 @@ const startCrawl = async () => {
   }
 };
 
-// 🔥 核心修复：使用 axios.post 接收一次性 JSON 响应
 const startBattle = async () => {
   if (previewData.value.length === 0) return;
 
@@ -295,16 +295,40 @@ const startBattle = async () => {
       comments: JSON.parse(JSON.stringify(previewData.value))
     };
 
-    const response = await axios.post('http://127.0.0.1:8000/api/crawl/analyze_comments', payload);
+    const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/crawl/analyze_comments`;
+    const response = await fetch(apiUrl, payload , {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-    teamRed.value = response.data.team_red;
-    teamBlue.value = response.data.team_blue;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
 
-    showBattlefield.value = true;
-    logs.value.push({ time: getCurrentTime(), text: `✅ 战局生成: ${teamRed.value.name} vs ${teamBlue.value.name}`, type: 'success' });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim());
 
-    await nextTick();
-    setupBattle();
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line);
+          if (data.type === 'thought') {
+            logs.value.push({ time: getCurrentTime(), text: `🧠 AI 思考: ${data.content}`, type: 'info' });
+          } else if (data.type === 'result') {
+            teamRed.value = data.data.team_red;
+            teamBlue.value = data.data.team_blue;
+            showBattlefield.value = true;
+            logs.value.push({ time: getCurrentTime(), text: `✅ 战局生成: ${teamRed.value.name} vs ${teamBlue.value.name}`, type: 'success' });
+            await nextTick();
+            setupBattle();
+          } else if (data.type === 'error') {
+            logs.value.push({ time: getCurrentTime(), text: '❌ 战局分析失败: ' + data.content, type: 'error' });
+          }
+        } catch (e) {}
+      }
+    }
 
   } catch (error) {
     logs.value.push({ time: getCurrentTime(), text: '❌ 战局分析失败: ' + (error.response?.data?.detail || error.message), type: 'error' });
@@ -434,85 +458,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ... (all previous styles are here) ... */
-.browser-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #aaa;
-  font-size: 12px;
-  cursor: pointer;
-  margin-right: 10px;
-}
-
-.browser-toggle input {
-  width: auto;
-  margin: 0;
-}
-
-.battle-btn {
-  background: linear-gradient(45deg, #ff5722, #ff9800);
-  color: white;
-  border: none;
-}
-.battlefield-container {
-  width: 100%;
-  height: 100%;
-  background: #000;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-.battle-header {
-  height: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-  color: #fff;
-  font-weight: bold;
-}
-.team-score.red { color: #ff4444; }
-.team-score.blue { color: #4488ff; }
-.vs-badge { font-style: italic; color: #aaa; }
-.battle-canvas {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-}
-.close-battle-btn {
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-}
-.winner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: #ffc107;
-  z-index: 10;
-}
-.winner-overlay h2 { font-size: 32px; margin-bottom: 10px; }
-.restart-btn {
-  margin-top: 20px;
-  padding: 10px 20px;
-  background: #42b983;
-  border: none;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-}
 /* 容器设置 */
 .viper-container {
   display: flex;
@@ -999,5 +944,84 @@ tr:hover td {
 .count-tag {
   font-size: 0.8em;
   color: #666;
+}
+
+.browser-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.browser-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.battle-btn {
+  background: linear-gradient(45deg, #ff5722, #ff9800);
+  color: white;
+  border: none;
+}
+.battlefield-container {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.battle-header {
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  color: #fff;
+  font-weight: bold;
+}
+.team-score.red { color: #ff4444; }
+.team-score.blue { color: #4488ff; }
+.vs-badge { font-style: italic; color: #aaa; }
+.battle-canvas {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+.close-battle-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+.winner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #ffc107;
+  z-index: 10;
+}
+.winner-overlay h2 { font-size: 32px; margin-bottom: 10px; }
+.restart-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #42b983;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
 }
 </style>

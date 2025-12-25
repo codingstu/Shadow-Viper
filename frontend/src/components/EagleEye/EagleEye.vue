@@ -112,7 +112,7 @@ const status = ref({ running: false, logs: [], results: [] });
 const logRef = ref(null);
 let timer = null;
 
-const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/eagle-eye' });
+const api = axios.create({ baseURL: `${import.meta.env.VITE_API_BASE_URL}/api/eagle-eye` }); // 🔥 修改
 
 const startScan = async () => {
     if (!targetInput.value) return;
