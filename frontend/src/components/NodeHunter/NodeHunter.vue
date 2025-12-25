@@ -1,109 +1,109 @@
 <template>
-    <div class="node-hunter">
-      <!-- 头部 -->
-      <div class="header">
-        <div class="title-box">
-          <span class="icon">🛰️</span>
-          <div class="text-group">
-            <h1>Shadow Matrix <span class="badge">Node Hunter</span></h1>
-            <p>全网高带宽节点嗅探系统：支持 Vmess / Vless / Trojan</p>
-          </div>
-        </div>
-
-        <div class="stats-row">
-          <div class="stat-card">
-            <span class="label">存活节点</span>
-            <span class="value">{{ stats.count }}</span>
-          </div>
-
-          <button @click="copySubscription" class="subscribe-btn">
-            📥 复制订阅
-          </button>
-
-          <button @click="testAllNodes" class="test-all-btn" :disabled="stats.running || testingAll">
-             {{ testingAll ? '🧪 测试中...' : '🧪 测试全部' }}
-          </button>
-
-          <button
-            @click="triggerScan"
-            class="scan-btn"
-            :disabled="stats.running"
-          >
-            {{ stats.running ? '🛰️ 正在嗅探...' : '📡 扫描全网' }}
-          </button>
+  <div class="node-hunter">
+    <!-- 头部 -->
+    <div class="header">
+      <div class="title-box">
+        <span class="icon">🛰️</span>
+        <div class="text-group">
+          <h1>节点猎手 <span class="badge">Node Hunter</span></h1>
+          <p>全网高带宽节点嗅探系统：支持 Vmess / Vless / Trojan</p>
         </div>
       </div>
 
-      <!-- 主内容区域 -->
-      <div class="main-content">
-        <!-- 日志面板 -->
-        <div class="panel log-panel">
-          <div class="panel-header">
-            <span>系统终端 (Terminal)</span>
+      <div class="stats-row">
+        <div class="stat-card">
+          <span class="label">存活节点</span>
+          <span class="value">{{ stats.count }}</span>
+        </div>
+
+        <button @click="copySubscription" class="subscribe-btn">
+          📥 复制订阅
+        </button>
+
+        <button @click="testAllNodes" class="test-all-btn" :disabled="stats.running || testingAll">
+           {{ testingAll ? '🧪 测试中...' : '🧪 测试全部' }}
+        </button>
+
+        <button
+          @click="triggerScan"
+          class="scan-btn"
+          :disabled="stats.running"
+        >
+          {{ stats.running ? '🛰️ 正在嗅探...' : '📡 扫描全网' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-content">
+      <!-- 日志面板 -->
+      <div class="panel log-panel">
+        <div class="panel-header">
+          <span>系统终端 (Terminal)</span>
+        </div>
+        <div class="terminal-body" ref="logRef">
+          <div v-for="(log, i) in stats.logs" :key="i" class="log-line">> {{ log }}</div>
+          <div v-if="!stats.logs?.length" class="empty-log">
+            点击 "扫描全网" 开始
           </div>
-          <div class="terminal-body" ref="logRef">
-            <div v-for="(log, i) in stats.logs" :key="i" class="log-line">> {{ log }}</div>
-            <div v-if="!stats.logs?.length" class="empty-log">
-              点击 "扫描全网" 开始
-            </div>
+        </div>
+      </div>
+
+      <!-- 节点列表面板 -->
+      <div class="panel list-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🌐 全网扫描节点</span>
+          </div>
+          <div class="panel-actions">
+            <span class="node-count">{{ stats.count }} 个节点</span>
           </div>
         </div>
 
-        <!-- 节点列表面板 -->
-        <div class="panel list-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <span>🌐 全网扫描节点</span>
+        <!-- 节点网格 -->
+        <div class="node-grid">
+          <div v-for="(node, index) in stats.nodes" :key="node.id || `${node.host}:${node.port}`" class="node-card" :class="{ 'testing': node.isTesting, 'offline': !node.alive }">
+            <div class="node-header">
+              <span class="node-name">{{ node.name }}</span>
+              <span class="node-status" :class="{ online: node.alive }">
+                {{ node.isTesting ? '测试中' : (node.alive ? '在线' : '离线') }}
+              </span>
             </div>
-            <div class="panel-actions">
-              <span class="node-count">{{ stats.count }} 个节点</span>
+            <div class="node-info">
+              <span class="protocol-badge" :class="node.protocol">
+                {{ node.protocol?.toUpperCase() || 'UNKNOWN' }}
+              </span>
+              <span class="host">{{ node.host }}:{{ node.port }}</span>
+            </div>
+            <div class="node-stats">
+              <div class="stat-item">
+                <span class="stat-label">延迟</span>
+                <span class="stat-value" :class="getDelayClass(node.delay)">
+                  {{ node.delay }}ms
+                </span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">速度</span>
+                <span class="stat-value">{{ node.speed?.toFixed(2) || '0.00' }} MB/s</span>
+              </div>
+            </div>
+            <div class="node-actions">
+              <button class="action-btn copy" @click="copyNode(node)">复制</button>
+              <button class="action-btn qrcode" @click="showQRCode(node, index)">二维码</button>
+              <button class="action-btn test" @click="testSingleNode(node, index)" :disabled="node.isTesting">测试</button>
             </div>
           </div>
 
-          <!-- 节点网格 -->
-          <div class="node-grid">
-            <div v-for="(node, index) in stats.nodes" :key="node.id || `${node.host}:${node.port}`" class="node-card" :class="{ 'testing': node.isTesting, 'offline': !node.alive }">
-              <div class="node-header">
-                <span class="node-name">{{ node.name }}</span>
-                <span class="node-status" :class="{ online: node.alive }">
-                  {{ node.isTesting ? '测试中' : (node.alive ? '在线' : '离线') }}
-                </span>
-              </div>
-              <div class="node-info">
-                <span class="protocol-badge" :class="node.protocol">
-                  {{ node.protocol?.toUpperCase() || 'UNKNOWN' }}
-                </span>
-                <span class="host">{{ node.host }}:{{ node.port }}</span>
-              </div>
-              <div class="node-stats">
-                <div class="stat-item">
-                  <span class="stat-label">延迟</span>
-                  <span class="stat-value" :class="getDelayClass(node.delay)">
-                    {{ node.delay }}ms
-                  </span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">速度</span>
-                  <span class="stat-value">{{ node.speed?.toFixed(2) || '0.00' }} MB/s</span>
-                </div>
-              </div>
-              <div class="node-actions">
-                <button class="action-btn copy" @click="copyNode(node)">复制</button>
-                <button class="action-btn qrcode" @click="showQRCode(node, index)">二维码</button>
-                <button class="action-btn test" @click="testSingleNode(node, index)" :disabled="node.isTesting">测试</button>
-              </div>
-            </div>
-
-            <div v-if="!stats.nodes?.length" class="empty-nodes">
-              <div class="empty-icon">🌐</div>
-              <div class="empty-text">暂无节点数据</div>
-              <button class="empty-btn" @click="triggerScan">开始扫描</button>
-            </div>
+          <div v-if="!stats.nodes?.length" class="empty-nodes">
+            <div class="empty-icon">🌐</div>
+            <div class="empty-text">暂无节点数据</div>
+            <button class="empty-btn" @click="triggerScan">开始扫描</button>
           </div>
         </div>
       </div>
     </div>
-  </template>
+  </div>
+</template>
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
@@ -121,7 +121,6 @@ const api = axios.create({
 async function fetchStats() {
   try {
     const response = await api.get('/nodes/stats');
-    // 合并状态，保留节点的 isTesting 状态
     const newNodes = response.data.nodes.map(newNode => {
       const oldNode = stats.value.nodes.find(n => n.host === newNode.host && n.port === newNode.port);
       return { ...newNode, isTesting: oldNode ? oldNode.isTesting : false };
@@ -152,7 +151,6 @@ async function testAllNodes() {
   addLog('🧪 开始测试所有节点...');
   try {
     await api.post('/nodes/test_all');
-    // 轮询直到扫描结束
     const interval = setInterval(async () => {
       await fetchStats();
       if (!stats.value.running) {
@@ -172,7 +170,6 @@ async function testSingleNode(node, index) {
   try {
     const response = await api.post(`/nodes/test_node/${index}`);
     if (response.data.status === 'ok') {
-      // 直接更新节点状态
       const result = response.data.result;
       node.alive = result.total_score > 0;
       node.delay = result.tcp_ping_ms;

@@ -2,7 +2,7 @@
   <div class="proxy-station">
     <div class="header-section">
       <div class="title-group">
-        <h1>🌐 猎手 IP 池 <span class="version">v1.3 HTTPS版</span></h1>
+        <h1>🌐 代理猎手池 <span class="version">v1.3 HTTPS版</span></h1>
         <p>基于付费通道的全球免费代理采集与清洗系统</p>
       </div>
       <div class="status-cards">

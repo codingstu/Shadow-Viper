@@ -10,10 +10,10 @@
         <span class="icon">⚗️</span><span class="text">Alchemy 炼金</span>
       </div>
       <div class="nav-item" :class="{ active: currentModule === 'proxy' }" @click="currentModule = 'proxy'">
-        <span class="icon">🌐</span><span class="text">猎手 IP 池</span>
+        <span class="icon">🌐</span><span class="text">代理猎手池</span>
       </div>
       <div class="nav-item" :class="{ active: currentModule === 'nodes' }" @click="currentModule = 'nodes'">
-        <span class="icon">🛰️</span><span class="text">Shadow Matrix</span>
+        <span class="icon">🛰️</span><span class="text">节点猎手</span>
       </div>
       <div class="nav-item" :class="{ active: currentModule === 'cyberrange' }" @click="currentModule = 'cyberrange'">
         <span class="icon">🛡️</span><span class="text">Cyber Range</span>
@@ -54,6 +54,7 @@
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue';
 
+// 🔥 异步按需加载 (只有点击时才下载代码)
 const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
 const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
 const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation/ProxyStation.vue'));
