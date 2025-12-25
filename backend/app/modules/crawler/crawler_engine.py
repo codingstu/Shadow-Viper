@@ -14,7 +14,7 @@ from .crawlers.text_crawler import GeneralTextCrawler
 from .crawlers.video_crawler import BilibiliCrawler, YouTubeCrawler, UniversalVideoCrawler
 from .proxy import router as proxy_router
 # 🔥 恢复：使用普通版分析器
-from .battle_analyzer import analyze_comments_for_battle 
+from .battle_analyzer import analyze_comments_for_battle
 
 router = APIRouter(tags=["crawler"])
 router.include_router(proxy_router)
@@ -22,6 +22,7 @@ router.include_router(proxy_router)
 pool_manager = None
 try:
     from ..proxy.proxy_engine import manager as pm
+
     pool_manager = pm
 except ImportError:
     pass
@@ -29,26 +30,32 @@ except ImportError:
 node_hunter = None
 try:
     from ..node_hunter.node_hunter import hunter as nh
+
     node_hunter = nh
 except ImportError:
     pass
+
 
 class CrawlRequest(BaseModel):
     url: str
     mode: str = "auto"
     network_type: str = "auto"
 
+
 class AnalyzeCommentsRequest(BaseModel):
     post_title: str
     comments: List[dict]
+
 
 VIDEO_SITES = [
     "missav", "missav.ws", "jable", "pornhub", "xvideos",
     "youtube", "youtu.be", "bilibili", "spankbang", "ddh", "jav", "hqporner"
 ]
 
+
 def is_video_site(url: str) -> bool:
     return any(site in url.lower() for site in VIDEO_SITES)
+
 
 class CrawlerFactory:
     @staticmethod
@@ -61,11 +68,12 @@ class CrawlerFactory:
             return UniversalVideoCrawler(pool_manager=manager)
         return GeneralTextCrawler(pool_manager=manager)
 
+
 async def smart_router(url: str, mode: str, network_type: str):
     if pool_manager and pool_manager.node_provider is None:
         if node_hunter:
             pool_manager.set_node_provider(node_hunter.get_alive_nodes)
-    
+
     is_linked = pool_manager and pool_manager.node_provider is not None
     pm_status = "✅" if is_linked else "❌"
     node_count = 0
@@ -73,11 +81,13 @@ async def smart_router(url: str, mode: str, network_type: str):
         try:
             nodes = pool_manager.node_provider()
             node_count = len(nodes) if nodes else 0
-        except: pass
-    
+        except:
+            pass
+
     status_msg = f"[Pool:{pm_status}(Nodes:{node_count})]"
-    yield json.dumps({"step": "init", "message": f"任务启动: {url} [Mode: {mode}] [Net: {network_type}] {status_msg}"}) + "\n"
-    
+    yield json.dumps(
+        {"step": "init", "message": f"任务启动: {url} [Mode: {mode}] [Net: {network_type}] {status_msg}"}) + "\n"
+
     crawler = CrawlerFactory.get_crawler(url, mode, manager=pool_manager)
 
     try:
@@ -91,7 +101,7 @@ async def smart_router(url: str, mode: str, network_type: str):
         if not df.empty:
             json_data = df.to_json(orient='records', force_ascii=False)
             yield json.dumps({
-                "step": "done", 
+                "step": "done",
                 "data": json.loads(json_data),
                 "columns": df.columns.tolist()
             }) + "\n"
@@ -101,9 +111,12 @@ async def smart_router(url: str, mode: str, network_type: str):
     except Exception as e:
         yield json.dumps({"step": "error", "message": f"系统错误: {str(e)}"}) + "\n"
 
+
 @router.post("/api/crawl")
 async def start_crawl(request: CrawlRequest):
-    return StreamingResponse(smart_router(request.url, request.mode, request.network_type), media_type="application/x-ndjson")
+    return StreamingResponse(smart_router(request.url, request.mode, request.network_type),
+                             media_type="application/x-ndjson")
+
 
 # 🔥 恢复：使用普通、一次性返回的端点
 @router.post("/api/crawl/analyze_comments")
@@ -115,6 +128,7 @@ async def analyze_comments_endpoint(request: AnalyzeCommentsRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
 
 @router.get("/download/{filename}")
 async def download_file(filename: str):

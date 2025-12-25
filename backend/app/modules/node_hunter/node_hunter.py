@@ -33,11 +33,13 @@ router = APIRouter(prefix="/nodes", tags=["nodes"])
 
 VERIFIED_NODES_FILE = "verified_nodes.json"
 
+
 class StatsResponse(BaseModel):
     count: int
     running: bool
     logs: List[str]
     nodes: List[dict]
+
 
 class NodeHunter:
     def __init__(self):
@@ -56,7 +58,7 @@ class NodeHunter:
         if not self.scheduler.running:
             self.scheduler.add_job(self.scan_cycle, 'interval', minutes=10, id='node_scan_refresh')
             self.scheduler.start()
-            self.add_log("✅ [System] Shadow Matrix 自动巡航已启动 (10min/cycle)", "SUCCESS")
+            self.add_log("✅ [System] 节点猎手自动巡航已启动 (10min/cycle)", "SUCCESS")
             asyncio.create_task(self.scan_cycle())
 
     def get_alive_nodes(self) -> List[Dict[str, Any]]:
@@ -94,7 +96,8 @@ class NodeHunter:
 
     def _save_nodes_to_file(self):
         try:
-            nodes_to_save = sorted(self.get_alive_nodes(), key=lambda x: x.get('test_results', {}).get('total_score', 0), reverse=True)[:20]
+            nodes_to_save = sorted(self.get_alive_nodes(),
+                                   key=lambda x: x.get('test_results', {}).get('total_score', 0), reverse=True)[:20]
             with open(VERIFIED_NODES_FILE, "w") as f:
                 json.dump(nodes_to_save, f, indent=2)
             self.add_log(f"💾 已将 Top {len(nodes_to_save)} 节点保存到缓存", "INFO")
@@ -122,6 +125,7 @@ class NodeHunter:
 
     async def _fetch_all_subscriptions(self) -> List[str]:
         all_nodes = []
+
         async def fetch_source(url):
             try:
                 content = await self.link_scraper.scrape_links_from_url(url)
@@ -131,7 +135,7 @@ class NodeHunter:
             except Exception as e:
                 self.add_log(f"❌ 抓取失败: {url[:40]}... ({e})", "ERROR")
             return []
-        
+
         tasks = [fetch_source(src) for src in self.sources]
         results = await asyncio.gather(*tasks)
         for res in results:
@@ -171,20 +175,23 @@ class NodeHunter:
                 node.update(alive=True, delay=results[i].tcp_ping_ms, test_results=results[i].__dict__)
                 node['speed'] = round(random.uniform(1.0, 30.0) / (node['delay'] / 100), 2) if node['delay'] > 0 else 0
                 valid_nodes.append(node)
-        
+
         self.nodes = sorted(valid_nodes, key=lambda x: x.get('test_results', {}).get('total_score', 0), reverse=True)
         self.add_log(f"🎉 测试完成！有效节点: {len(self.nodes)}/{len(nodes_to_test)}", "SUCCESS")
-        
+
         if self.nodes:
             self.subscription_base64 = generate_subscription_content(self.nodes)
             self.add_log(f"📥 已生成订阅链接 ({len(self.nodes)}个节点)", "SUCCESS")
             self._save_nodes_to_file()
 
+
 hunter = NodeHunter()
+
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats():
     return {"count": len(hunter.nodes), "running": hunter.is_scanning, "logs": hunter.logs, "nodes": hunter.nodes[:50]}
+
 
 @router.post("/trigger")
 async def trigger_scan(background_tasks: BackgroundTasks):
@@ -193,6 +200,7 @@ async def trigger_scan(background_tasks: BackgroundTasks):
         return {"status": "started"}
     return {"status": "running"}
 
+
 @router.post("/test_all")
 async def test_all_nodes(background_tasks: BackgroundTasks):
     if not hunter.is_scanning:
@@ -200,6 +208,7 @@ async def test_all_nodes(background_tasks: BackgroundTasks):
         background_tasks.add_task(hunter.test_and_update_nodes, nodes_to_test)
         return {"status": "started", "message": f"开始测试 {len(nodes_to_test)} 个节点"}
     return {"status": "running", "message": "扫描正在进行中"}
+
 
 @router.post("/test_node/{node_index}")
 async def test_single_node(node_index: int):
@@ -223,12 +232,14 @@ async def get_subscription():
         return {"subscription": hunter.subscription_base64, "node_count": len(hunter.nodes)}
     return {"error": "暂无订阅链接"}
 
+
 @router.get("/clash/config")
 async def get_clash_config():
     config_str = generate_clash_config(hunter.nodes)
     if config_str:
         return {"filename": f"clash_config_{int(time.time())}.yaml", "content": config_str}
     return {"error": "生成Clash配置失败"}
+
 
 @router.get("/node/{node_index}/qrcode")
 async def get_node_qrcode(node_index: int):

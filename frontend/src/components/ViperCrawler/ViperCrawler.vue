@@ -21,8 +21,8 @@
           <option value="direct">⚡️ 仅直连</option>
         </select>
 
-        <button
-          @click="startCrawl"
+        <button 
+          @click="startCrawl" 
           :disabled="isCrawling || !targetUrl"
           :class="{ 'processing': isCrawling }"
         >
@@ -43,7 +43,7 @@
             </div>
           </div>
         </div>
-
+        
         <div class="log-window" ref="logWindowRef">
           <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="log.type">
             <span class="time">[{{ log.time }}]</span>
@@ -58,10 +58,10 @@
           <span>{{ crawlMode === 'text' ? '文本数据 (表格视图)' : '媒体/混合数据 (流视图)' }}</span>
           <div class="header-actions">
             <span v-if="previewData.length" class="count-tag">{{ previewData.length }} 条数据</span>
-
-            <button
-              v-if="previewData.length > 0 && crawlMode === 'text'"
-              @click="startBattle"
+            
+            <button 
+              v-if="previewData.length > 0 && crawlMode === 'text'" 
+              @click="startBattle" 
               class="mini-btn battle-btn"
               :disabled="isAnalyzing"
             >
@@ -191,7 +191,7 @@ const getCurrentTime = () => new Date().toLocaleTimeString();
 
 const proxyUrl = (url) => {
   if (!url || url === 'No Cover') return '';
-  return `${import.meta.env.VITE_API_BASE_URL}/api/proxy?url=${encodeURIComponent(url)}`; // 🔥 修改
+  return `${import.meta.env.VITE_API_BASE_URL}/api/proxy?url=${encodeURIComponent(url)}`;
 };
 
 const initVideoPlayer = (videoEl, originalUrl) => {
@@ -237,13 +237,12 @@ const startCrawl = async () => {
   logs.value.push({ time: getCurrentTime(), text: `🚀 启动 Viper 引擎 [${crawlMode.value}] [Net: ${networkType.value}]...`, type: 'info' });
 
   try {
-      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/crawl`;
-      const response = await fetch(apiUrl, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/crawl`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: finalUrl,
-        mode: crawlMode.value,
+      body: JSON.stringify({ 
+        url: finalUrl, 
+        mode: crawlMode.value, 
         network_type: networkType.value,
       })
     });
@@ -282,54 +281,30 @@ const startCrawl = async () => {
 
 const startBattle = async () => {
   if (previewData.value.length === 0) return;
-
+  
   const titleRow = previewData.value.find(row => row['类型'] === '标题' || row['类型'] === 'H1');
   const postTitle = titleRow ? titleRow['内容'] : 'Unknown Topic';
 
   isAnalyzing.value = true;
   logs.value.push({ time: getCurrentTime(), text: '⚔️ 正在分析评论区阵营...', type: 'info' });
-
+  
   try {
     const payload = {
       post_title: postTitle,
       comments: JSON.parse(JSON.stringify(previewData.value))
     };
 
-    const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/crawl/analyze_comments`;
-    const response = await fetch(apiUrl, payload , {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(line => line.trim());
-
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          if (data.type === 'thought') {
-            logs.value.push({ time: getCurrentTime(), text: `🧠 AI 思考: ${data.content}`, type: 'info' });
-          } else if (data.type === 'result') {
-            teamRed.value = data.data.team_red;
-            teamBlue.value = data.data.team_blue;
-            showBattlefield.value = true;
-            logs.value.push({ time: getCurrentTime(), text: `✅ 战局生成: ${teamRed.value.name} vs ${teamBlue.value.name}`, type: 'success' });
-            await nextTick();
-            setupBattle();
-          } else if (data.type === 'error') {
-            logs.value.push({ time: getCurrentTime(), text: '❌ 战局分析失败: ' + data.content, type: 'error' });
-          }
-        } catch (e) {}
-      }
-    }
-
+    const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/crawl/analyze_comments`, payload);
+    
+    teamRed.value = response.data.team_red;
+    teamBlue.value = response.data.team_blue;
+    
+    showBattlefield.value = true;
+    logs.value.push({ time: getCurrentTime(), text: `✅ 战局生成: ${teamRed.value.name} vs ${teamBlue.value.name}`, type: 'success' });
+    
+    await nextTick();
+    setupBattle();
+    
   } catch (error) {
     logs.value.push({ time: getCurrentTime(), text: '❌ 战局分析失败: ' + (error.response?.data?.detail || error.message), type: 'error' });
   } finally {
@@ -340,11 +315,11 @@ const startBattle = async () => {
 const setupBattle = () => {
   const canvas = canvasRef.value;
   if (!canvas) return;
-
+  
   const container = canvas.parentElement;
   canvas.width = container.offsetWidth;
   canvas.height = container.offsetHeight;
-
+  
   const ctx = canvas.getContext('2d');
 
   teamRed.value.warriors.forEach((w, i) => {
@@ -355,7 +330,7 @@ const setupBattle = () => {
     w.damageDealt = 0;
     w.color = '#ff4444';
   });
-
+  
   teamBlue.value.warriors.forEach((w, i) => {
     w.x = canvas.width - 100 + Math.random() * 50;
     w.y = 50 + (i * 30) % (canvas.height - 100);
@@ -367,7 +342,7 @@ const setupBattle = () => {
 
   winner.value = null;
   mvp.value = { id: '', damageDealt: 0 };
-
+  
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
   animateBattle();
 };
@@ -376,7 +351,7 @@ const animateBattle = () => {
   const canvas = canvasRef.value;
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-
+  
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -399,13 +374,13 @@ const drawTeam = (ctx, warriors) => {
     if (w.hp > 0) {
       ctx.fillStyle = w.color;
       ctx.fillRect(w.x, w.y, 10, 10);
-
+      
       const hpPercent = w.hp / w.maxHp;
       ctx.fillStyle = '#333';
       ctx.fillRect(w.x, w.y - 6, 10, 3);
       ctx.fillStyle = '#0f0';
       ctx.fillRect(w.x, w.y - 6, 10 * hpPercent, 3);
-
+      
       ctx.fillStyle = '#aaa';
       ctx.font = '10px monospace';
       ctx.fillText(w.id.substring(0, 8), w.x, w.y + 20);
@@ -417,18 +392,18 @@ const simulateRound = () => {
   const attack = (attackers, defenders) => {
     attackers.forEach(att => {
       if (att.hp <= 0) return;
-
+      
       const targets = defenders.filter(d => d.hp > 0);
       if (targets.length === 0) return;
-
+      
       const target = targets[Math.floor(Math.random() * targets.length)];
-
+      
       att.x += (target.x - att.x) * 0.05;
-
+      
       const dmg = Math.max(1, Math.floor((att.attack + att.poison) * 0.1));
       target.hp -= dmg;
       att.damageDealt += dmg;
-
+      
       if (Math.abs(target.x - att.x) < 20) {
           att.x -= (target.x - att.x) * 0.5;
       }
