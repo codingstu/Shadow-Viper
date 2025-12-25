@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+      {
+        "source": "/api/:path*",
+        "destination": "https://residents-skin-money-ports.trycloudflare.com/api/:path*"
+      }
+    ]
+  }
