@@ -14,6 +14,7 @@ import qrcode
 from io import BytesIO
 import json
 import base64
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from ..link_scraper.link_scraper import LinkScraper
 from .parsers import parse_node_url
@@ -48,7 +49,15 @@ class NodeHunter:
         self.user_sources_file = 'user_sources.json'
         self.user_sources = self._load_user_sources()
         self.sources = self._get_default_sources() + self.user_sources
+        self.scheduler = AsyncIOScheduler()
         self._load_nodes_from_file()
+
+    def start_scheduler(self):
+        if not self.scheduler.running:
+            self.scheduler.add_job(self.scan_cycle, 'interval', minutes=10, id='node_scan_refresh')
+            self.scheduler.start()
+            self.add_log("✅ [System] Shadow Matrix 自动巡航已启动 (10min/cycle)", "SUCCESS")
+            asyncio.create_task(self.scan_cycle())
 
     def get_alive_nodes(self) -> List[Dict[str, Any]]:
         return [node for node in self.nodes if node.get('alive')]
@@ -151,7 +160,6 @@ class NodeHunter:
         finally:
             self.is_scanning = False
 
-    # 🔥 新增：测试并更新节点列表的核心逻辑
     async def test_and_update_nodes(self, nodes_to_test: List[Dict]):
         self.add_log(f"🧪 开始对 {len(nodes_to_test)} 个节点进行真实网络测试...", "INFO")
         tasks = [test_node_network(node) for node in nodes_to_test]
@@ -185,7 +193,6 @@ async def trigger_scan(background_tasks: BackgroundTasks):
         return {"status": "started"}
     return {"status": "running"}
 
-# 🔥 新增：测试所有节点的路由
 @router.post("/test_all")
 async def test_all_nodes(background_tasks: BackgroundTasks):
     if not hunter.is_scanning:
@@ -194,7 +201,6 @@ async def test_all_nodes(background_tasks: BackgroundTasks):
         return {"status": "started", "message": f"开始测试 {len(nodes_to_test)} 个节点"}
     return {"status": "running", "message": "扫描正在进行中"}
 
-# 🔥 新增：测试单个节点的路由
 @router.post("/test_node/{node_index}")
 async def test_single_node(node_index: int):
     if 0 <= node_index < len(hunter.nodes):

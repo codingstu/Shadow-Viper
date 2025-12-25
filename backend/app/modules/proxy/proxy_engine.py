@@ -53,29 +53,34 @@ class ProxyManager:
         self.logs = []
         self.scheduler = AsyncIOScheduler()
         self.load_from_file()
-        self.node_provider = None # 🔥 移除：不再直接使用 NodeHunter 节点
+        self.node_provider = None 
 
     def set_node_provider(self, provider_func):
-        """(Deprecated) 注入 NodeHunter 的节点提供函数"""
-        # self.node_provider = provider_func
-        pass
+        """注入 NodeHunter 的节点提供函数"""
+        self.log("🔗 Node Hunter provider has been connected to the proxy pool.")
+        self.node_provider = provider_func
 
     def start(self):
         if not self.scheduler.running:
+            # 🔥 核心修复：添加定时任务，每 5 分钟自动刷新一次
+            self.scheduler.add_job(self.run_cycle, 'interval', minutes=5, id='proxy_refresh')
             self.scheduler.start()
-            self.log("✅ [System] 代理池极速净化引擎已启动 (1min/cycle)")
+            self.log("✅ [System] 代理池自动巡检已启动 (5min/cycle)")
+            # 启动时立即运行一次
             asyncio.create_task(self.run_cycle())
 
     def get_standard_chain(self):
-        """
-        返回标准代理链路，策略：
-        1. 🥇 猎手 IP 池 (Top 3)
-        2. 🥈 付费代理
-        3. 🥉 Tor
-        """
         chain = []
+        
+        # 🔥 恢复：从 NodeHunter 获取节点
+        if self.node_provider:
+            try:
+                nodes = self.node_provider()
+                for node in nodes[:5]: # 取前5个
+                    chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ NodeHunter ({node['name'][:10]})", 10))
+            except Exception as e:
+                self.log(f"⚠️ Failed to get nodes from provider: {e}")
 
-        # 1. 🥇 猎手 IP 池
         alive_nodes = [p for p in self.proxies if p.score > 0]
         if alive_nodes:
             top_limit = min(len(alive_nodes), 20)
@@ -84,12 +89,10 @@ class ProxyManager:
             for p in selected:
                 chain.append((p.to_url(), f"Hunter Node ({p.country})", 5))
 
-        # 2. 🥈 付费代理
         paid_url = os.getenv("PAID_PROXY_URL")
         if paid_url:
             chain.append((paid_url, "👑 Paid Proxy", 5))
 
-        # 3. 🥉 Tor 网络
         if os.getenv("USE_TOR_BACKUP", "True") == "True":
             tor_host = os.getenv("TOR_HOST", "127.0.0.1")
             tor_port = os.getenv("TOR_PORT", "9050")
@@ -116,7 +119,10 @@ class ProxyManager:
 
     def save_to_file(self):
         try:
-            self.proxies.sort(key=lambda x: x.speed)
+            # 去重并排序
+            unique_proxies = {f"{p.ip}:{p.port}": p for p in self.proxies}.values()
+            self.proxies = sorted(list(unique_proxies), key=lambda x: x.speed)
+            
             with open(PROXY_STORE_FILE, "w") as f:
                 json.dump([p.dict() for p in self.proxies], f)
         except:
@@ -129,9 +135,7 @@ class ProxyManager:
             ("https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt", "socks5"),
             ("https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=5000&country=all", "socks5"),
             ("https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt", "http"),
-            (
-            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all",
-            "http"),
+            ("https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all", "http"),
         ]
         self.log(f"🌍 开始抓取 (Sources: {len(sources)})...")
         async with aiohttp.ClientSession() as session:
@@ -184,11 +188,14 @@ class ProxyManager:
         if self.is_running: return
         self.is_running = True
         try:
-            self.log("🚀 ==== 启动 IP 净化 (1min 轮换) ====")
+            self.log("🚀 ==== 启动 IP 净化 (5min 轮换) ====")
             candidates = await self.fetch_public_sources()
+            
+            # 保留现有存活的代理
             for p in self.proxies:
-                proto = "http" if p.protocol == "https" else p.protocol
-                candidates.append({"ip": p.ip, "port": p.port, "protocol": proto})
+                if p.score > 0: # 只保留分数高的
+                    proto = "http" if p.protocol == "https" else p.protocol
+                    candidates.append({"ip": p.ip, "port": p.port, "protocol": proto})
 
             unique = {f"{c['ip']}:{c['port']}": c for c in candidates}.values()
             total = len(unique)
@@ -201,18 +208,22 @@ class ProxyManager:
 
             async with aiohttp.ClientSession() as session:
                 for i in range(0, total, batch_size):
-                    if not self.is_running: break
+                    # if not self.is_running: break # 移除此检查，确保任务完成
                     batch = candidate_list[i:i + batch_size]
                     tasks = [self.validate_one(p, session) for p in batch]
                     results = await asyncio.gather(*tasks)
                     new_valid = [r for r in results if r]
                     valid_list.extend(new_valid)
+                    
+                    # 实时更新，避免等待太久
                     if new_valid:
-                        self.proxies = valid_list
+                        # 简单的合并去重
+                        current_map = {f"{p.ip}:{p.port}": p for p in self.proxies}
+                        for p in new_valid:
+                            current_map[f"{p.ip}:{p.port}"] = p
+                        self.proxies = list(current_map.values())
                         self.save_to_file()
 
-            self.proxies = valid_list
-            self.save_to_file()
             self.log(f"✅ 净化完成！当前可用: {len(self.proxies)} 个")
         except Exception as e:
             self.log(f"❌ 异常: {e}")

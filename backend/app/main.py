@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-# 引入各个模块的路由 (使用相对导入)
+# 引入各个模块的路由
 from .modules.alchemy.alchemy_engine import router as alchemy_router
 from .modules.proxy.proxy_engine import router as proxy_router, manager as pool_manager
 from .modules.node_hunter.node_hunter import router as node_router, hunter as node_hunter
@@ -19,13 +19,11 @@ from .core.ai_hub import set_pool_manager
 
 load_dotenv()
 
-# 🔥 核心修复：移除 NodeHunter 和 ProxyManager 的直接连接
-# pool_manager.set_node_provider(node_hunter.get_alive_nodes)
+# 设置全局 Pool Manager (core/ai_hub 用)
 set_pool_manager(pool_manager)
 
 app = FastAPI(title="SpiderFlow API")
 
-# CORS 配置
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,28 +32,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Lifespan 事件处理
 @app.on_event("startup")
 async def startup_event():
-    # 启动代理池管理器
+    # 1. 启动代理池管理器
     if pool_manager:
-        # pool_manager.start()  # 禁用自动启动
-        print("🚀 [System] 代理池引擎已加载 (手动模式)")
+        pool_manager.start()
+        print(f"🚀 [System] 代理池引擎已加载 (ID: {id(pool_manager)})")
     else:
         print("⚠️ [System] 代理池管理器未加载")
+
+    # 2. 启动 Shadow Matrix 扫描
+    if node_hunter:
+        node_hunter.start_scheduler()
+    else:
+        print("⚠️ [System] Shadow Matrix 未加载")
+        
+    # 🔥🔥🔥 核心修复：在启动时强制连接 NodeHunter 和 ProxyManager 🔥🔥🔥
+    if pool_manager and node_hunter:
+        print("🔗 [System] 正在连接 NodeHunter -> ProxyManager...")
+        pool_manager.set_node_provider(node_hunter.get_alive_nodes)
+        
+        # 验证连接是否成功
+        if pool_manager.node_provider:
+             print("✅ [System] 连接成功！ProxyManager 现在可以获取猎手节点。")
+        else:
+             print("❌ [System] 连接失败！NodeProvider 仍为 None。")
 
 @app.get("/")
 def read_root():
     return {"message": "SpiderFlow API", "status": "running"}
 
-# ==================== 路由注册 ====================
 app.include_router(proxy_router)
 app.include_router(node_router)
 app.include_router(crawler_router)
 app.include_router(alchemy_router)
 app.include_router(cyber_router)
-app.include_router(eagle_router)
+app.include_router(eagle_router) # 🔥 修复
 app.include_router(refinery_router)
 app.include_router(generator_router)
 app.include_router(game_router)
 app.include_router(shodan_router)
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

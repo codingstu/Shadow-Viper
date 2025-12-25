@@ -14,7 +14,6 @@
           <option value="media">🎬 深度媒体</option>
         </select>
 
-        <!-- 🔥 更新网络模式选择器 -->
         <select v-model="networkType" :disabled="isCrawling" class="mode-select network-select">
           <option value="auto">🤖 自动模式</option>
           <option value="node">🛰️ Shadow Matrix</option>
@@ -38,9 +37,9 @@
         <div class="panel-header">
           <div class="header-title-group">
             <span>系统日志</span>
-            <div class="status-indicator" :class="{ 'active': isCrawling }">
+            <div class="status-indicator" :class="{ 'active': isCrawling || isAnalyzing }">
               <span class="status-dot"></span>
-              <span class="status-text">{{ isCrawling ? '正在处理...' : '任务空闲' }}</span>
+              <span class="status-text">{{ isCrawling ? '爬取中...' : (isAnalyzing ? '分析中...' : '任务空闲') }}</span>
             </div>
           </div>
         </div>
@@ -59,13 +58,38 @@
           <span>{{ crawlMode === 'text' ? '文本数据 (表格视图)' : '媒体/混合数据 (流视图)' }}</span>
           <div class="header-actions">
             <span v-if="previewData.length" class="count-tag">{{ previewData.length }} 条数据</span>
+
+            <button
+              v-if="previewData.length > 0 && crawlMode === 'text'"
+              @click="startBattle"
+              class="mini-btn battle-btn"
+              :disabled="isAnalyzing"
+            >
+              {{ isAnalyzing ? '⚔️ 分析战局中...' : '⚔️ 开启赛博斗兽场' }}
+            </button>
+
             <button v-if="previewData.length > 0" @click="clearPreview" class="mini-btn">清除</button>
           </div>
         </div>
 
         <div class="preview-content-area">
 
-          <div v-if="crawlMode === 'text'" class="table-container">
+          <div v-if="showBattlefield" class="battlefield-container">
+            <div class="battle-header">
+              <div class="team-score red">{{ teamRed.name || '红方' }}: {{ teamRed.warriors.filter(w => w.hp > 0).length }}</div>
+              <div class="vs-badge">VS</div>
+              <div class="team-score blue">{{ teamBlue.name || '蓝方' }}: {{ teamBlue.warriors.filter(w => w.hp > 0).length }}</div>
+              <button @click="closeBattle" class="close-battle-btn">✕</button>
+            </div>
+            <canvas ref="canvasRef" class="battle-canvas"></canvas>
+            <div v-if="winner" class="winner-overlay">
+              <h2>🏆 {{ winner.name }} 获胜!</h2>
+              <p>MVP: {{ mvp.id }} (造成 {{ mvp.damageDealt }} 点伤害)</p>
+              <button @click="resetBattle" class="restart-btn">再战一场</button>
+            </div>
+          </div>
+
+          <div v-else-if="crawlMode === 'text'" class="table-container">
             <table v-if="previewData.length > 0">
               <thead>
                 <tr>
@@ -95,7 +119,6 @@
           <div v-else class="media-container">
             <div v-if="mediaItems.length > 0" class="media-stream-list">
               <div v-for="(item, idx) in mediaItems" :key="idx" class="media-card" :class="item.type">
-
                 <div v-if="item.type === 'video'" class="video-layout">
                   <div class="video-player-wrapper">
                     <video :ref="(el) => initVideoPlayer(el, item.url)" class="hls-player" controls
@@ -115,22 +138,18 @@
                     </div>
                   </div>
                 </div>
-
                 <div v-else-if="item.type === 'image'" class="image-layout">
                   <img :src="proxyUrl(item.url)" class="preview-img" @click="openLink(item.url)" loading="lazy" />
                   <span class="badge image">IMG</span>
                 </div>
-
                 <div v-else class="text-card-layout">
                   <div class="text-header">
                     <span class="badge text">{{ item.rawType }}</span>
                   </div>
                   <p class="text-content">{{ item.content }}</p>
                 </div>
-
               </div>
             </div>
-
             <div v-else class="preview-placeholder">
               <div class="empty-state">
                 <span class="icon">🕸️</span>
@@ -147,16 +166,26 @@
 </template>
 
 <script setup>
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, onUnmounted } from 'vue';
 import Hls from 'hls.js';
+import axios from 'axios';
 
 const targetUrl = ref('');
 const crawlMode = ref('text');
-const networkType = ref('auto'); // 🔥 默认改为 auto
+const networkType = ref('auto');
 const logs = ref([]);
 const isCrawling = ref(false);
 const logWindowRef = ref(null);
 const previewData = ref([]);
+
+const showBattlefield = ref(false);
+const isAnalyzing = ref(false);
+const canvasRef = ref(null);
+const teamRed = ref({ name: '红方', warriors: [] });
+const teamBlue = ref({ name: '蓝方', warriors: [] });
+const winner = ref(null);
+const mvp = ref({ id: '', damageDealt: 0 });
+let animationFrameId = null;
 
 const getCurrentTime = () => new Date().toLocaleTimeString();
 
@@ -203,6 +232,7 @@ const startCrawl = async () => {
   isCrawling.value = true;
   logs.value = [];
   clearPreview();
+  showBattlefield.value = false;
 
   logs.value.push({ time: getCurrentTime(), text: `🚀 启动 Viper 引擎 [${crawlMode.value}] [Net: ${networkType.value}]...`, type: 'info' });
 
@@ -210,7 +240,11 @@ const startCrawl = async () => {
     const response = await fetch('http://127.0.0.1:8000/api/crawl', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: finalUrl, mode: crawlMode.value, network_type: networkType.value })
+      body: JSON.stringify({
+        url: finalUrl,
+        mode: crawlMode.value,
+        network_type: networkType.value,
+      })
     });
 
     const reader = response.body.getReader();
@@ -245,12 +279,240 @@ const startCrawl = async () => {
   }
 };
 
-const clearPreview = () => { previewData.value = []; };
+// 🔥 核心修复：使用 axios.post 接收一次性 JSON 响应
+const startBattle = async () => {
+  if (previewData.value.length === 0) return;
+
+  const titleRow = previewData.value.find(row => row['类型'] === '标题' || row['类型'] === 'H1');
+  const postTitle = titleRow ? titleRow['内容'] : 'Unknown Topic';
+
+  isAnalyzing.value = true;
+  logs.value.push({ time: getCurrentTime(), text: '⚔️ 正在分析评论区阵营...', type: 'info' });
+
+  try {
+    const payload = {
+      post_title: postTitle,
+      comments: JSON.parse(JSON.stringify(previewData.value))
+    };
+
+    const response = await axios.post('http://127.0.0.1:8000/api/crawl/analyze_comments', payload);
+
+    teamRed.value = response.data.team_red;
+    teamBlue.value = response.data.team_blue;
+
+    showBattlefield.value = true;
+    logs.value.push({ time: getCurrentTime(), text: `✅ 战局生成: ${teamRed.value.name} vs ${teamBlue.value.name}`, type: 'success' });
+
+    await nextTick();
+    setupBattle();
+
+  } catch (error) {
+    logs.value.push({ time: getCurrentTime(), text: '❌ 战局分析失败: ' + (error.response?.data?.detail || error.message), type: 'error' });
+  } finally {
+    isAnalyzing.value = false;
+  }
+};
+
+const setupBattle = () => {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  const container = canvas.parentElement;
+  canvas.width = container.offsetWidth;
+  canvas.height = container.offsetHeight;
+
+  const ctx = canvas.getContext('2d');
+
+  teamRed.value.warriors.forEach((w, i) => {
+    w.x = 50 + Math.random() * 50;
+    w.y = 50 + (i * 30) % (canvas.height - 100);
+    w.hp = w.armor;
+    w.maxHp = w.armor;
+    w.damageDealt = 0;
+    w.color = '#ff4444';
+  });
+
+  teamBlue.value.warriors.forEach((w, i) => {
+    w.x = canvas.width - 100 + Math.random() * 50;
+    w.y = 50 + (i * 30) % (canvas.height - 100);
+    w.hp = w.armor;
+    w.maxHp = w.armor;
+    w.damageDealt = 0;
+    w.color = '#4488ff';
+  });
+
+  winner.value = null;
+  mvp.value = { id: '', damageDealt: 0 };
+
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  animateBattle();
+};
+
+const animateBattle = () => {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawTeam(ctx, teamRed.value.warriors);
+  drawTeam(ctx, teamBlue.value.warriors);
+
+  if (!winner.value) {
+    if (Math.random() < 0.1) {
+        simulateRound();
+    }
+    animationFrameId = requestAnimationFrame(animateBattle);
+  } else {
+    const allWarriors = [...teamRed.value.warriors, ...teamBlue.value.warriors];
+    mvp.value = allWarriors.reduce((max, w) => w.damageDealt > max.damageDealt ? w : max, { id: 'None', damageDealt: 0 });
+  }
+};
+
+const drawTeam = (ctx, warriors) => {
+  warriors.forEach(w => {
+    if (w.hp > 0) {
+      ctx.fillStyle = w.color;
+      ctx.fillRect(w.x, w.y, 10, 10);
+
+      const hpPercent = w.hp / w.maxHp;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(w.x, w.y - 6, 10, 3);
+      ctx.fillStyle = '#0f0';
+      ctx.fillRect(w.x, w.y - 6, 10 * hpPercent, 3);
+
+      ctx.fillStyle = '#aaa';
+      ctx.font = '10px monospace';
+      ctx.fillText(w.id.substring(0, 8), w.x, w.y + 20);
+    }
+  });
+};
+
+const simulateRound = () => {
+  const attack = (attackers, defenders) => {
+    attackers.forEach(att => {
+      if (att.hp <= 0) return;
+
+      const targets = defenders.filter(d => d.hp > 0);
+      if (targets.length === 0) return;
+
+      const target = targets[Math.floor(Math.random() * targets.length)];
+
+      att.x += (target.x - att.x) * 0.05;
+
+      const dmg = Math.max(1, Math.floor((att.attack + att.poison) * 0.1));
+      target.hp -= dmg;
+      att.damageDealt += dmg;
+
+      if (Math.abs(target.x - att.x) < 20) {
+          att.x -= (target.x - att.x) * 0.5;
+      }
+    });
+  };
+
+  attack(teamRed.value.warriors, teamBlue.value.warriors);
+  attack(teamBlue.value.warriors, teamRed.value.warriors);
+
+  const redAlive = teamRed.value.warriors.some(w => w.hp > 0);
+  const blueAlive = teamBlue.value.warriors.some(w => w.hp > 0);
+
+  if (!blueAlive && redAlive) winner.value = teamRed.value;
+  else if (!redAlive && blueAlive) winner.value = teamBlue.value;
+  else if (!redAlive && !blueAlive) winner.value = { name: '平局' };
+};
+
+const resetBattle = () => { setupBattle(); };
+const closeBattle = () => { showBattlefield.value = false; if (animationFrameId) cancelAnimationFrame(animationFrameId); };
+const clearPreview = () => { previewData.value = []; showBattlefield.value = false; };
 const openLink = (url) => window.open(url, '_blank');
 const copyToClipboard = (text) => { navigator.clipboard.writeText(text); alert('地址已复制'); };
+
+onUnmounted(() => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+});
 </script>
 
 <style scoped>
+/* ... (all previous styles are here) ... */
+.browser-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.browser-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.battle-btn {
+  background: linear-gradient(45deg, #ff5722, #ff9800);
+  color: white;
+  border: none;
+}
+.battlefield-container {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.battle-header {
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  color: #fff;
+  font-weight: bold;
+}
+.team-score.red { color: #ff4444; }
+.team-score.blue { color: #4488ff; }
+.vs-badge { font-style: italic; color: #aaa; }
+.battle-canvas {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+.close-battle-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+.winner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #ffc107;
+  z-index: 10;
+}
+.winner-overlay h2 { font-size: 32px; margin-bottom: 10px; }
+.restart-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #42b983;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
 /* 容器设置 */
 .viper-container {
   display: flex;
@@ -329,6 +591,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 🔥 按钮运行时的状态 */
 button.processing {
   background: #2c3e50;
   border: 1px solid #3e5871;
@@ -368,12 +631,14 @@ button.processing {
   flex-shrink: 0;
 }
 
+/* 🔥 系统日志标题组样式 */
 .header-title-group {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+/* 🔥 呼吸灯样式 */
 .status-indicator {
   display: flex;
   align-items: center;
@@ -396,6 +661,7 @@ button.processing {
   transition: all 0.3s;
 }
 
+/* 激活状态 */
 .status-indicator.active {
   border-color: rgba(66, 185, 131, 0.5);
   background: rgba(66, 185, 131, 0.1);
@@ -408,12 +674,14 @@ button.processing {
   animation: breathe 1.5s infinite ease-in-out;
 }
 
+/* 呼吸动画 */
 @keyframes breathe {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.2); opacity: 0.6; }
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* 日志窗口 */
 .log-window {
   flex: 1;
   padding: 15px;
@@ -446,6 +714,21 @@ button.processing {
   color: #e57373;
 }
 
+.download-box {
+  padding: 10px;
+  background: #252525;
+  text-align: center;
+  border-top: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.download-btn {
+  color: #42b983;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+/* 预览区域 */
 .preview-panel {
   display: flex;
   flex-direction: column;
@@ -458,6 +741,7 @@ button.processing {
   overflow: hidden;
 }
 
+/* 文本表格容器 */
 .table-container {
   width: 100%;
   height: 100%;
@@ -531,6 +815,7 @@ tr:hover td {
   text-overflow: ellipsis;
 }
 
+/* 媒体流容器 */
 .media-container {
   width: 100%;
   height: 100%;

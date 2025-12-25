@@ -54,7 +54,6 @@
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue';
 
-// 🔥 异步按需加载 (只有点击时才下载代码)
 const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
 const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
 const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation/ProxyStation.vue'));
