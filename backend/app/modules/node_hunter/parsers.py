@@ -5,7 +5,11 @@ import re
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, parse_qs
 
-COUNTRY_CODES = {"CN": "中国", "US": "美国", "JP": "日本", "SG": "新加坡", "TW": "台湾", "HK": "香港", "KR": "韩国", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "RU": "俄罗斯", "IN": "印度", "BR": "巴西", "TR": "土耳其", "NL": "荷兰", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "CH": "瑞士", "AT": "奥地利", "BE": "比利时"}
+COUNTRY_CODES = {"CN": "中国", "US": "美国", "JP": "日本", "SG": "新加坡", "TW": "台湾", "HK": "香港", "KR": "韩国",
+                 "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "RU": "俄罗斯",
+                 "IN": "印度", "BR": "巴西", "TR": "土耳其", "NL": "荷兰", "SE": "瑞典", "NO": "挪威", "FI": "芬兰",
+                 "DK": "丹麦", "CH": "瑞士", "AT": "奥地利", "BE": "比利时"}
+
 
 def clean_base64(b64_str: str) -> str:
     """Cleans a base64 string by removing invalid characters and adding padding."""
@@ -15,8 +19,8 @@ def clean_base64(b64_str: str) -> str:
         cleaned += '=' * padding
     return cleaned
 
+
 def parse_vmess_link(url: str) -> Optional[Dict[str, Any]]:
-    """Parses a vmess:// link."""
     try:
         if not url.startswith('vmess://'): return None
         b64_str = url[8:]
@@ -36,19 +40,26 @@ def parse_vmess_link(url: str) -> Optional[Dict[str, Any]]:
             if code in name.upper():
                 country = country_name
                 break
-        return {"id": f"vmess_{host}_{port}", "name": name, "protocol": "vmess", "host": host, "port": port, "uuid": uuid, "alterId": int(config.get('aid', 0)), "network": config.get('net', 'tcp'), "type": config.get('type', 'none'), "tls": config.get('tls', 'none'), "sni": config.get('sni', ''), "path": config.get('path', ''), "host_header": config.get('host', ''), "country": country}
+        return {"id": f"vmess_{host}_{port}", "name": name, "protocol": "vmess", "host": host, "port": port,
+                "uuid": uuid, "alterId": int(config.get('aid', 0)), "network": config.get('net', 'tcp'),
+                "type": config.get('type', 'none'), "tls": config.get('tls', 'none'), "sni": config.get('sni', ''),
+                "path": config.get('path', ''), "host_header": config.get('host', ''), "country": country}
     except:
         return None
 
+
 def parse_vless_link(url: str) -> Optional[Dict[str, Any]]:
-    """Parses a vless:// link."""
     try:
         parsed = urlparse(url)
         netloc = parsed.netloc
-        if '@' in netloc: uuid, server_port = netloc.split('@')
-        else: uuid, server_port = "", netloc
-        if ':' in server_port: server, port_str = server_port.split(':', 1); port = int(port_str)
-        else: server, port = server_port, 443
+        if '@' in netloc:
+            uuid, server_port = netloc.split('@')
+        else:
+            uuid, server_port = "", netloc
+        if ':' in server_port:
+            server, port_str = server_port.split(':', 1); port = int(port_str)
+        else:
+            server, port = server_port, 443
         params = parse_qs(parsed.query)
         name = parsed.fragment or f"VLESS-Node"
         country = "Unknown"
@@ -56,18 +67,23 @@ def parse_vless_link(url: str) -> Optional[Dict[str, Any]]:
             if code in name.upper():
                 country = country_name
                 break
-        return {"id": f"vless_{server}_{port}", "name": name, "protocol": "vless", "host": server, "port": port, "uuid": uuid, "type": params.get('type', ['tcp'])[0], "security": params.get('security', ['none'])[0], "path": params.get('path', [''])[0], "host_header": params.get('host', [''])[0], "sni": params.get('sni', [''])[0], "country": country}
+        return {"id": f"vless_{server}_{port}", "name": name, "protocol": "vless", "host": server, "port": port,
+                "uuid": uuid, "type": params.get('type', ['tcp'])[0], "security": params.get('security', ['none'])[0],
+                "path": params.get('path', [''])[0], "host_header": params.get('host', [''])[0],
+                "sni": params.get('sni', [''])[0], "country": country}
     except:
         return None
 
+
 def parse_trojan_link(url: str) -> Optional[Dict[str, Any]]:
-    """Parses a trojan:// link."""
     try:
         parsed = urlparse(url)
         password = parsed.username
         server_port = parsed.netloc.split('@')[-1] if '@' in parsed.netloc else parsed.netloc
-        if ':' in server_port: server, port_str = server_port.split(':', 1); port = int(port_str)
-        else: server, port = server_port, 443
+        if ':' in server_port:
+            server, port_str = server_port.split(':', 1); port = int(port_str)
+        else:
+            server, port = server_port, 443
         params = parse_qs(parsed.query)
         name = parsed.fragment or f"Trojan-Node"
         country = "Unknown"
@@ -75,12 +91,14 @@ def parse_trojan_link(url: str) -> Optional[Dict[str, Any]]:
             if code in name.upper():
                 country = country_name
                 break
-        return {"id": f"trojan_{server}_{port}", "name": name, "protocol": "trojan", "host": server, "port": port, "password": password or "", "sni": params.get('sni', [''])[0], "type": params.get('type', ['tcp'])[0], "country": country}
+        return {"id": f"trojan_{server}_{port}", "name": name, "protocol": "trojan", "host": server, "port": port,
+                "password": password or "", "sni": params.get('sni', [''])[0], "type": params.get('type', ['tcp'])[0],
+                "country": country}
     except:
         return None
 
+
 def parse_ss_link(url: str) -> Optional[Dict[str, Any]]:
-    """Parses a ss:// link."""
     try:
         if not url.startswith('ss://'): return None
         b64_str = url[5:]
@@ -98,24 +116,57 @@ def parse_ss_link(url: str) -> Optional[Dict[str, Any]]:
             if code in name.upper():
                 country = country_name
                 break
-        return {"id": f"ss_{server}_{port}", "name": name, "protocol": "ss", "host": server, "port": port, "method": method, "password": password, "country": country}
+        return {"id": f"ss_{server}_{port}", "name": name, "protocol": "ss", "host": server, "port": port,
+                "method": method, "password": password, "country": country}
     except:
         return None
 
-def parse_ssr_link(url: str) -> Optional[Dict[str, Any]]:
-    """Parses a ssr:// link (simplified)."""
+
+def parse_standard_proxy_link(url: str) -> Optional[Dict[str, Any]]:
+    """🔥 新增：解析 socks5:// 或 http:// 链接"""
     try:
-        name = urlparse(url).fragment or f"SSR-Node"
-        return {"id": f"ssr_node", "name": name, "protocol": "ssr", "host": "unknown", "port": 443, "country": "Unknown"}
+        parsed = urlparse(url)
+        if parsed.scheme not in ['socks5', 'socks4', 'http', 'https']: return None
+
+        server = parsed.hostname
+        port = parsed.port
+        if not server or not port: return None
+
+        name = parsed.fragment or f"{parsed.scheme.upper()}-Node"
+        user = parsed.username
+        password = parsed.password
+
+        country = "Unknown"
+        for code, country_name in COUNTRY_CODES.items():
+            if code in name.upper():
+                country = country_name
+                break
+
+        return {
+            "id": f"{parsed.scheme}_{server}_{port}",
+            "name": name,
+            "protocol": parsed.scheme,
+            "host": server,
+            "port": port,
+            "username": user,
+            "password": password,
+            "country": country
+        }
     except:
         return None
+
 
 def parse_node_url(url: str) -> Optional[Dict[str, Any]]:
-    """Parses any supported node URL."""
     url = url.strip()
-    if url.startswith('vmess://'): return parse_vmess_link(url)
-    elif url.startswith('vless://'): return parse_vless_link(url)
-    elif url.startswith('trojan://'): return parse_trojan_link(url)
-    elif url.startswith('ss://'): return parse_ss_link(url)
-    elif url.startswith('ssr://'): return parse_ssr_link(url)
+    if url.startswith('vmess://'):
+        return parse_vmess_link(url)
+    elif url.startswith('vless://'):
+        return parse_vless_link(url)
+    elif url.startswith('trojan://'):
+        return parse_trojan_link(url)
+    elif url.startswith('ss://'):
+        return parse_ss_link(url)
+    # 优先解析标准代理协议
+    elif url.startswith('socks5://') or url.startswith('http://') or url.startswith('https://'):
+        return parse_standard_proxy_link(url)
     return None

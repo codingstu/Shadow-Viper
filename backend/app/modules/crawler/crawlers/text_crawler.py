@@ -8,10 +8,9 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Route
 from urllib.parse import urlparse
 from abc import ABC, abstractmethod
+from typing import List, Dict, Optional, Tuple
 import re
-from typing import List, Dict
 
-# 引入代理池管理器 (相对导入)
 try:
     from ...proxy.proxy_engine import manager as pool_manager
 except ImportError:
@@ -28,116 +27,119 @@ class BaseCrawler(ABC):
     async def crawl(self, url: str, network_type: str = "proxy", force_browser: bool = False):
         pass
 
-    async def get_playwright_proxy(self, network_type="auto"):
+    def _sync_validate(self, proxy_conf: Dict) -> bool:
+        """
+        🔥 升级版工兵：不仅要通，还要有一点带宽
+        请求掘金的 robots.txt (小文件但真实)，确保代理能访问目标站
+        """
+        # 目标改为掘金的 robots.txt，既轻量又能验证对目标站的连通性
+        test_url = "https://juejin.cn/robots.txt"
+
+        proxies = None
+        if proxy_conf and "server" in proxy_conf:
+            srv = proxy_conf["server"]
+            proxies = {"http": srv, "https": srv}
+
+        try:
+            # 5秒超时，确保有一点速度
+            resp = requests.get(test_url, proxies=proxies, timeout=5, verify=False,
+                                headers={"User-Agent": GLOBAL_USER_AGENT})
+            return resp.status_code == 200
+        except:
+            return False
+
+    async def select_session_proxy(self, network_type="auto") -> Tuple[Optional[Dict], str]:
         if network_type == "direct":
             return None, "Direct"
 
-        proxy_config = None
-        proxy_name = "Direct (Fallback)"
+        candidates = []
+        if self.pool_manager and network_type in ["node", "auto"]:
+            if self.pool_manager.node_provider:
+                try:
+                    nodes = self.pool_manager.node_provider()
+                    if nodes:
+                        native_nodes = [n for n in nodes if n.get('protocol') in ['socks5', 'socks4', 'http', 'https']]
+                        random.shuffle(native_nodes)
+                        for node in native_nodes[:30]:
+                            protocol = node.get('protocol')
+                            schema = "socks5" if "socks" in protocol else "http"
+                            conf = {"server": f"{schema}://{node['host']}:{node['port']}"}
+                            if node.get('username') and node.get('password'):
+                                conf['username'] = node.get('username')
+                                conf['password'] = node.get('password')
+                            candidates.append((conf, f"🛰️ Native-{node['host']}"))
+                except Exception as e:
+                    print(f"[ProxySelector] Error: {e}")
 
-        if self.pool_manager and network_type in ["proxy", "auto", "node"]:
-            # 每次获取都随机取一个高质量节点，确保重试时能换 IP
+        if self.pool_manager and (network_type in ["proxy", "auto"] or network_type == "node"):
             alive_nodes = [p for p in self.pool_manager.proxies if p.score > 0]
             if alive_nodes:
-                # 随机性更大一点，防止一直随到同一个
-                p = random.choice(alive_nodes[:20] if len(alive_nodes) > 20 else alive_nodes)
-                proxy_config = {"server": p.to_url()}
-                proxy_name = f"🌐 Proxy-{p.ip}"
-                return proxy_config, proxy_name
+                random.shuffle(alive_nodes)
+                for p in alive_nodes[:15]:
+                    conf = {"server": p.to_url()}
+                    candidates.append((conf, f"🌐 ProxyPool-{p.ip}"))
+
+        if candidates:
+            print(f"🔎 [ProxySelector] Testing {len(candidates)} candidates (Target: Juejin)...")
+            loop = asyncio.get_running_loop()
+            for conf, name in candidates:
+                is_valid = await loop.run_in_executor(None, self._sync_validate, conf)
+                if is_valid:
+                    print(f"✅ [ProxySelector] Selected: {name}")
+                    return conf, name
+            print("⚠️ [ProxySelector] No valid proxy found, fallback to Direct.")
 
         return None, "Direct (Fallback)"
 
+    async def async_request(self, method, url, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: requests.request(method, url, **kwargs))
 
-async def async_request(method, url, **kwargs):
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, lambda: requests.request(method, url, **kwargs))
+    async def request_with_fixed_proxy(self, url, proxy_conf, proxy_name, headers=None, stream=False, timeout=15):
+        if headers is None: headers = {}
+        domain = urlparse(url).netloc
+        referer = "https://juejin.cn/" if "juejin" in domain else "https://www.google.com/"
+        base_headers = {"User-Agent": GLOBAL_USER_AGENT, "Referer": referer}
+        base_headers.update(headers)
 
+        proxies = None
+        if proxy_conf and "server" in proxy_conf:
+            srv = proxy_conf["server"]
+            proxies = {"http": srv, "https": srv}
 
-async def request_with_chain_async(url, headers=None, stream=False, timeout=15, method="GET", network_type="proxy",
-                                   pool_manager=None):
-    if headers is None: headers = {}
-    domain = urlparse(url).netloc
-    referer = "https://juejin.cn/" if "juejin" in domain else "https://www.google.com/"
-
-    base_headers = {
-        "User-Agent": GLOBAL_USER_AGENT, "Accept-Language": "zh-CN,zh;q=0.9",
-        "Referer": referer, "Upgrade-Insecure-Requests": "1"
-    }
-    base_headers.update(headers)
-
-    chain = []
-    if network_type == "direct":
-        chain.append((None, "Direct", 10))
-    else:
-        if pool_manager:
-            alive_nodes = [p for p in pool_manager.proxies if p.score > 0]
-            if alive_nodes:
-                selected = sorted(alive_nodes, key=lambda p: p.score, reverse=True)[:5]
-                for p in selected:
-                    chain.append((p.to_url(), f"🌐 Proxy-{p.ip}", 10))
-        chain.append((None, "Direct (Fallback)", 10))
-
-    if not chain:
-        chain.append((None, "Direct (Emergency)", 10))
-
-    last_error = None
-    for proxy_url, name, time_limit in chain:
         try:
-            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
-            resp = await async_request(
-                method, url, headers=base_headers, proxies=proxies,
-                timeout=time_limit, verify=False, stream=stream
-            )
-            if resp.status_code in [200, 304]:
-                resp.network_name = name
-                return resp
-            last_error = f"{name} Error ({resp.status_code})"
+            resp = await self.async_request("GET", url, headers=base_headers, proxies=proxies, timeout=timeout,
+                                            verify=False, stream=stream)
+            resp.network_name = proxy_name
+            return resp
         except Exception as e:
-            last_error = f"{name} Exception: {str(e)}"
+            class DummyResponse:
+                status_code = 500;
+                text = "";
+                content = b"";
+                network_name = f"{proxy_name} Failed: {str(e)}";
 
-    class DummyResponse:
-        status_code = 500;
-        text = "";
-        content = b"";
-        network_name = f"Failed. Last: {last_error}"
+                def json(self): return {}
 
-        def json(self): return {}
+            return DummyResponse()
 
-    return DummyResponse()
+    async def extract_text_async(self, html):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.extract_text_from_html, html)
 
-
-async def block_aggressive(route):
-    if route.request.resource_type in ["image", "font", "media"]:
-        await route.abort()
-    else:
-        await route.continue_()
-
-
-class GeneralTextCrawler(BaseCrawler):
     def extract_text_from_html(self, html: str) -> List[Dict]:
         soup = BeautifulSoup(html, "html.parser")
         data_list = []
-
         if soup.title: data_list.append({"类型": "标题", "内容": soup.title.string.strip(), "备注": "Meta-Title"})
-
         art = soup.select_one(".article-content") or soup.select_one(".markdown-body")
         if art: data_list.append({"类型": "ARTICLE", "内容": art.get_text("\n", strip=True), "备注": "Juejin Article"})
 
-        # 增强的选择器 (针对掘金多变的结构)
-        selectors = [
-            ".comment-list-wrapper .comment-item",
-            "div[class*='comment-item']",
-            ".comment-list .item",
-            "div[data-test-id='comment-item']",
-            ".comments-container .comment"
-        ]
-
+        selectors = [".comment-list-wrapper .comment-item", "div[class*='comment-item']", ".comment-list .item",
+                     "div[data-test-id='comment-item']"]
         juejin_comments = []
         for sel in selectors:
             found = soup.select(sel)
-            if found:
-                juejin_comments = found
-                break
+            if found: juejin_comments = found; break
 
         for item in juejin_comments:
             content = item.select_one(".comment-content") or item.select_one("div[class*='content']")
@@ -147,34 +149,21 @@ class GeneralTextCrawler(BaseCrawler):
                 data_list.append({"类型": "评论", "内容": content.get_text(strip=True), "备注": f"User: {u_text}"})
 
         if data_list: return data_list
-
         gen_art = soup.find("article") or soup.find("div", class_=re.compile(r'post|article|content', re.I))
-        if gen_art:
-            t = gen_art.get_text("\n", strip=True)
-            if len(t) > 20: data_list.append({"类型": "ARTICLE", "内容": t, "备注": "General Article"})
-
-        for c in soup.select("div[class*='comment'], div[class*='reply']")[:50]:
-            t = c.get_text(strip=True)
-            if 10 < len(t) < 500: data_list.append({"类型": "评论", "内容": t, "备注": "General Comment"})
-
+        if gen_art: data_list.append(
+            {"类型": "ARTICLE", "内容": gen_art.get_text("\n", strip=True), "备注": "General Article"})
         return data_list
 
-    async def extract_text_async(self, html):
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.extract_text_from_html, html)
 
+class GeneralTextCrawler(BaseCrawler):
     async def crawl(self, url: str, network_type: str = "proxy", force_browser: bool = False):
-        # 1. 静态抓取 (Request Phase)
+        yield json.dumps({"step": "process", "message": "🔎 正在实时筛选最佳节点..."}) + "\n"
+        session_proxy_conf, session_proxy_name = await self.select_session_proxy(network_type)
+        yield json.dumps({"step": "process", "message": f"🔒 锁定优质线路: {session_proxy_name}"}) + "\n"
+
         if not force_browser:
-            yield json.dumps(
-                {"step": "process", "message": f"🚀 启动极速文本解析 (Requests) [{network_type}]..."}) + "\n"
-            resp = await request_with_chain_async(url, network_type=network_type, pool_manager=self.pool_manager)
-
-            if resp.status_code == 599:
-                yield json.dumps({"step": "error", "message": f"❌ {resp.network_name}"}) + "\n"
-                return
-
-            net_name = getattr(resp, "network_name", "未知")
+            yield json.dumps({"step": "process", "message": f"🚀 启动极速文本解析..."}) + "\n"
+            resp = await self.request_with_fixed_proxy(url, session_proxy_conf, session_proxy_name)
             data_list = []
             if resp.status_code in [200, 304] and len(resp.text) > 100:
                 resp.encoding = 'utf-8'
@@ -182,111 +171,87 @@ class GeneralTextCrawler(BaseCrawler):
 
             is_juejin = "juejin.cn" in url
             has_comments = any(d['类型'] == '评论' for d in data_list)
-
             if data_list and (not is_juejin or has_comments):
-                yield json.dumps({"step": "process",
-                                  "message": f"🌐 静态提取成功 ({net_name}) - 发现 {len(data_list)} 条数据"}) + "\n"
+                yield json.dumps({"step": "process", "message": f"🌐 静态提取成功 - {len(data_list)} 条数据"}) + "\n"
                 yield pd.DataFrame(data_list)
                 return
+            yield json.dumps({"step": "process", "message": f"⚠️ 静态抓取不满足，启动浏览器..."}) + "\n"
 
-            yield json.dumps({"step": "process", "message": f"⚠️ 静态抓取不满足 ({net_name})，启动浏览器渲染..."}) + "\n"
-        else:
-            yield json.dumps({"step": "process", "message": f"🖥️ 用户强制使用浏览器渲染..."}) + "\n"
+        max_retries = 3 if network_type != "direct" else 1
 
-        # ==================== 🔥 核心增强：Playwright 自动重试机制 (3条命) 🔥 ====================
-        max_retries = 3
-        # 如果是直连，只试一次，因为网络环境不变重试没意义
-        if network_type == "direct": max_retries = 1
+        async def block_aggressive(route):
+            if route.request.resource_type in ["image", "font", "media"]:
+                await route.abort()
+            else:
+                await route.continue_()
 
         for attempt in range(1, max_retries + 1):
-            try:
-                # 每次尝试都重新获取一个新代理
-                proxy_conf, proxy_name = await self.get_playwright_proxy(network_type)
-                yield json.dumps({"step": "process",
-                                  "message": f"🌐 [第 {attempt}/{max_retries} 次尝试] 启动浏览器: {proxy_name}..."}) + "\n"
+            if attempt > 1:
+                yield json.dumps({"step": "process", "message": "🔄 节点失效，重新筛选..."}) + "\n"
+                session_proxy_conf, session_proxy_name = await self.select_session_proxy(network_type)
 
+            try:
+                yield json.dumps({"step": "process",
+                                  "message": f"🌐 [第 {attempt}/{max_retries} 次] 启动浏览器: {session_proxy_name}..."}) + "\n"
                 async with async_playwright() as p:
                     browser = None
                     try:
-                        # 增加防检测参数
-                        browser = await p.chromium.launch(
-                            headless=True,
-                            args=["--mute-audio", "--disable-blink-features=AutomationControlled"],
-                            proxy=proxy_conf
-                        )
+                        browser = await p.chromium.launch(headless=True, args=["--mute-audio",
+                                                                               "--disable-blink-features=AutomationControlled"],
+                                                          proxy=session_proxy_conf)
                         context = await browser.new_context(user_agent=GLOBAL_USER_AGENT)
                         page = await context.new_page()
                         await page.route("**/*", block_aggressive)
 
-                        # 增加超时容错
-                        await page.goto(url, timeout=45000, wait_until="networkidle")
+                        # 🔥 核心优化：放宽等待条件，只要 DOM 出来就行，不等资源完全加载
+                        await page.goto(url, timeout=60000, wait_until="domcontentloaded")
 
-                        # 掘金专用逻辑
+                        # 手动等待核心内容出现，作为双保险
+                        try:
+                            await page.wait_for_selector("article, .markdown-body, .article-content", timeout=15000)
+                        except:
+                            pass  # 如果等不到也不要紧，继续往下走
+
                         if "juejin.cn" in url:
-                            yield json.dumps({"step": "process", "message": "🖱️ 检测到掘金，正在贪婪抓取..."}) + "\n"
-
+                            yield json.dumps({"step": "process", "message": "🖱️ 掘金贪婪滚动中..."}) + "\n"
                             try:
-                                await page.click(".fetch-comment-btn", timeout=3000)
-                                await asyncio.sleep(2)
+                                await page.click(".fetch-comment-btn", timeout=3000); await asyncio.sleep(2)
                             except:
                                 pass
-
-                            # 增加滚动等待时间，应对慢节点
                             prev_height = 0
-                            for i in range(10):  # 滚10次
+                            for i in range(10):
                                 await page.keyboard.press("End")
                                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                                # 慢网速下，给 3 秒加载时间
-                                await asyncio.sleep(3)
-
+                                await asyncio.sleep(2.5)
                                 new_height = await page.evaluate("document.body.scrollHeight")
-                                if new_height == prev_height:
-                                    # 尝试晃动
-                                    await page.evaluate("window.scrollBy(0, -300)")
-                                    await asyncio.sleep(1)
-                                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                                    await asyncio.sleep(2)
-                                    if await page.evaluate("document.body.scrollHeight") == new_height:
-                                        break
+                                if new_height == prev_height: break
                                 prev_height = new_height
-                                if i % 2 == 0:
-                                    yield json.dumps(
-                                        {"step": "process", "message": f"🖱️ 滚动加载中 ({i + 1})..."}) + "\n"
-
+                                if i % 2 == 0: yield json.dumps(
+                                    {"step": "process", "message": f"🖱️ 加载更多评论 ({i + 1})..."}) + "\n"
                         else:
-                            # 通用滚动
-                            for _ in range(5):
-                                await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                                await asyncio.sleep(1)
+                            for _ in range(5): await page.evaluate(
+                                "window.scrollBy(0, window.innerHeight)"); await asyncio.sleep(1)
 
                         content = await page.content()
                         data_list = await self.extract_text_async(content)
-
-                        # 判断是否成功
                         if data_list:
                             c_count = len([d for d in data_list if d['类型'] == '评论'])
                             yield json.dumps({"step": "process",
-                                              "message": f"✅ 深度渲染提取成功 - 发现 {len(data_list)} 条数据 ({c_count} 条评论)"}) + "\n"
+                                              "message": f"✅ 深度渲染成功 - {len(data_list)} 条数据 ({c_count} 评论)"}) + "\n"
                             yield pd.DataFrame(data_list)
-                            await browser.close()
-                            return  # 🔥 成功就退出函数，不再重试
+                            await browser.close();
+                            return
 
-                        # 如果没抓到数据，抛出异常触发重试
-                        raise Exception("页面加载成功但未提取到有效数据 (可能是白屏或被拦截)")
+                        # 如果是 domcontentloaded 模式，可能有时候页面确实还没渲染完，抛出异常重试
+                        raise Exception("页面结构不完整 (可能是加载太慢)")
 
                     except Exception as e:
-                        err_msg = str(e)
-                        # 如果是最后一次尝试，才报 Error
                         if attempt == max_retries:
-                            yield json.dumps({"step": "error", "message": f"❌ 最终失败: {err_msg}"}) + "\n"
+                            yield json.dumps({"step": "error", "message": f"❌ 最终失败: {str(e)}"}) + "\n"
                         else:
-                            # 否则只报 Warning，并继续循环
-                            yield json.dumps({"step": "process",
-                                              "message": f"⚠️ 当前节点 ({proxy_name}) 不稳定: {err_msg}，准备切换节点重试..."}) + "\n"
+                            yield json.dumps({"step": "process", "message": f"⚠️ 节点不稳: {str(e)}"}) + "\n"
                     finally:
                         if browser: await browser.close()
-
             except Exception as outer_e:
-                # 捕获获取代理等外部错误
-                if attempt == max_retries:
-                    yield json.dumps({"step": "error", "message": f"❌ 启动失败: {str(outer_e)}"}) + "\n"
+                if attempt == max_retries: yield json.dumps(
+                    {"step": "error", "message": f"❌ 启动失败: {str(outer_e)}"}) + "\n"
