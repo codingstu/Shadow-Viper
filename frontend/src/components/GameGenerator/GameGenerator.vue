@@ -1,213 +1,302 @@
 <template>
-    <div class="ide-container game-theme">
-
-      <div class="sidebar-panel">
-        <div class="sidebar-header">
-          <h2>🎮 游戏库</h2>
-          <span class="badge">{{ gameHistory.length }}</span>
-        </div>
-        <div class="history-list">
-          <div v-for="item in gameHistory" :key="item.id" @click="loadGame(item.id)" class="history-item" :class="{ 'active': currentAppId === item.id }">
-            <div class="item-title">{{ item.full_req.replace('[GAME] ', '') }}</div>
-            <div class="item-meta">
-              <span>ID: {{ item.id }}</span>
-              <button @click.stop="deleteApp(item.id)" class="delete-btn">×</button>
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+    <n-global-style />
+    <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
+      
+      <div class="shrink-0 mb-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.4)]">
+              <span class="text-xl">🎮</span>
             </div>
+            <div>
+              <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">
+                Game Generator <span class="text-xs bg-violet-900/30 text-violet-300 px-2 py-0.5 rounded ml-1 border border-violet-500/30 align-middle">DeepSeek Gaming</span>
+              </h1>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1.5 rounded-full border border-gray-800">
+            <span class="relative flex h-2.5 w-2.5">
+              <span v-if="isStreaming" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-fuchsia-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="isStreaming ? 'bg-fuchsia-500' : 'bg-gray-500'"></span>
+            </span>
+            <span class="text-xs font-mono hidden md:inline" :class="isStreaming ? 'text-fuchsia-400' : 'text-gray-500'">
+              {{ isStreaming ? 'COMPILING...' : 'READY TO PLAY' }}
+            </span>
           </div>
         </div>
       </div>
 
-      <div class="main-editor">
-        <div class="status-bar">
-          <div class="traffic-lights">
-            <span class="light red"></span><span class="light yellow"></span><span class="light green"></span>
+      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        
+        <div class="w-full lg:w-64 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden shrink-0 lg:h-full h-auto max-h-[200px] lg:max-h-none">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <span class="font-bold text-gray-300 text-sm">🕹️ GAME LIBRARY</span>
+            <n-tag size="small" :bordered="false" class="bg-gray-800 text-violet-400">{{ gameHistory.length }}</n-tag>
           </div>
-          <div class="view-toggles" v-if="generatedHtml || isStreaming">
-            <button @click="viewMode = 'preview'" :class="{ active: viewMode === 'preview' }" class="toggle-btn" :disabled="isStreaming">🕹️ 试玩</button>
-            <button @click="viewMode = 'code'" :class="{ active: viewMode === 'code' }" class="toggle-btn">👾 源码</button>
-          </div>
-          <span class="status-text">{{ isStreaming ? 'Building Game Engine...' : 'Ready to Play' }}</span>
-          <button v-if="generatedHtml && !isStreaming" @click="refreshIframe" class="action-btn">🔄 重开一局</button>
-        </div>
-
-        <div class="content-viewport">
-          <div v-show="viewMode === 'preview'" class="viewport-inner game-viewport">
-            <div v-if="!generatedHtml && !isStreaming" class="empty-state">
-              <div class="empty-icon">👾</div>
-              <p>想玩什么？DeepSeek 现场给你做</p>
+          
+          <div class="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-2">
+            <div 
+              v-for="item in gameHistory" 
+              :key="item.id" 
+              @click="loadGame(item.id)" 
+              class="p-3 rounded-lg cursor-pointer border transition-all duration-200 group relative"
+              :class="currentAppId === item.id 
+                ? 'bg-violet-900/20 border-violet-500/50 shadow-[0_0_10px_rgba(139,92,246,0.2)]' 
+                : 'bg-[#252525] border-transparent hover:border-gray-600 hover:bg-[#2a2a2a]'"
+            >
+              <div class="text-xs text-gray-300 font-bold mb-1 line-clamp-2 leading-relaxed">
+                {{ item.full_req.replace('[GAME] ', '') }}
+              </div>
+              <div class="flex justify-between items-center mt-2">
+                <span class="text-[10px] text-gray-600 font-mono">ID: {{ item.id }}</span>
+                <button 
+                  @click.stop="deleteApp(item.id)" 
+                  class="text-gray-600 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-900/20 text-xs opacity-0 group-hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-            <iframe ref="iframeRef" v-if="generatedHtml && !isStreaming" class="app-frame" :srcdoc="generatedHtml" sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-pointer-lock"></iframe>
-          </div>
 
-          <div v-show="viewMode === 'code'" class="viewport-inner code-mode">
-            <div class="code-actions" v-if="!isStreaming">
-              <button @click="copyCode" class="copy-btn">📋 复制</button>
+            <div v-if="gameHistory.length === 0" class="text-center py-8 text-gray-600 text-xs">
+              暂无游戏记录
             </div>
-            <textarea ref="codeTextarea" readonly class="code-viewer" :value="streamBuffer || generatedHtml"></textarea>
           </div>
         </div>
 
-        <div class="input-area">
-          <div class="input-wrapper">
-            <span class="input-icon">🎮</span>
-            <input v-model="requirement" type="text" placeholder="例如：一个躲避陨石的飞机游戏，按空格发射子弹..." class="prompt-input" @keyup.enter="generateGameStream" :disabled="isStreaming" />
-            <button @click="generateGameStream" :disabled="isStreaming || !requirement" class="generate-btn">
-              {{ isStreaming ? '编译中...' : 'Start' }}
-            </button>
+        <div class="flex-1 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden">
+          
+          <div class="p-2 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0 h-12">
+            <div class="flex bg-black rounded p-0.5 border border-gray-700">
+              <button 
+                @click="viewMode = 'preview'" 
+                :disabled="isStreaming"
+                class="px-3 py-1 text-xs rounded transition-all flex items-center gap-1"
+                :class="viewMode === 'preview' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300 disabled:opacity-50'"
+              >
+                🕹️ 试玩
+              </button>
+              <button 
+                @click="viewMode = 'code'" 
+                class="px-3 py-1 text-xs rounded transition-all flex items-center gap-1"
+                :class="viewMode === 'code' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'"
+              >
+                👾 源码
+              </button>
+            </div>
+
+            <div class="flex gap-2" v-if="!isStreaming">
+              <n-button 
+                v-if="viewMode === 'code' && (streamBuffer || generatedHtml)" 
+                size="tiny" secondary type="info" 
+                @click="copyCode"
+              >
+                📋 复制代码
+              </n-button>
+              <n-button 
+                v-if="generatedHtml" 
+                size="tiny" secondary 
+                @click="refreshIframe"
+              >
+                🔄 重开一局
+              </n-button>
+            </div>
           </div>
+
+          <div class="flex-1 relative bg-black overflow-hidden">
+            <div v-show="viewMode === 'preview'" class="w-full h-full relative">
+              <div v-if="!generatedHtml && !isStreaming" class="absolute inset-0 flex flex-col items-center justify-center bg-[#151515] text-gray-600">
+                <span class="text-6xl mb-4 opacity-20 animate-pulse">👾</span>
+                <p class="text-sm font-mono">想玩什么？DeepSeek 现场给你做</p>
+              </div>
+              <iframe 
+                ref="iframeRef" 
+                v-if="generatedHtml && !isStreaming" 
+                class="w-full h-full border-none" 
+                :srcdoc="generatedHtml" 
+                sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-pointer-lock"
+              ></iframe>
+            </div>
+
+            <div v-show="viewMode === 'code'" class="w-full h-full bg-[#0d1117] flex flex-col">
+              <textarea 
+                ref="codeTextarea" 
+                readonly 
+                class="w-full h-full bg-transparent text-yellow-500/90 p-4 font-mono text-xs leading-relaxed resize-none outline-none custom-scrollbar selection:bg-yellow-900/30"
+                :value="streamBuffer || generatedHtml"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="p-4 bg-[#252525] border-t border-gray-700 shrink-0">
+            <div class="relative">
+              <div class="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🎮</div>
+              <n-input
+                v-model:value="requirement"
+                type="text"
+                placeholder="例如：一个躲避陨石的飞机游戏，按空格发射子弹..."
+                class="!bg-[#1a1a1a] !border-gray-600 !text-gray-200 !pl-10 !pr-24 !h-12 !text-sm !rounded-lg"
+                @keyup.enter="generateGameStream"
+                :disabled="isStreaming"
+              />
+              <div class="absolute right-1 top-1/2 -translate-y-1/2">
+                <n-button 
+                  type="primary" 
+                  class="font-bold shadow-[0_0_10px_rgba(139,92,246,0.4)]"
+                  :loading="isStreaming"
+                  :disabled="isStreaming || !requirement"
+                  @click="generateGameStream"
+                >
+                  {{ isStreaming ? '编译中' : 'Start' }}
+                </n-button>
+              </div>
+            </div>
+          </div>
+
         </div>
+
       </div>
     </div>
-  </template>
+  </n-config-provider>
+</template>
 
-  <script setup>
-  import { ref, onMounted, nextTick, watch, computed } from 'vue';
+<script setup>
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
+// 🔥 引入 Naive UI
+import { NConfigProvider, NGlobalStyle, NButton, NInput, NTag, darkTheme } from 'naive-ui';
 
-  const requirement = ref('');
-  const generatedHtml = ref('');
-  const streamBuffer = ref('');
-  const isStreaming = ref(false);
-  const historyList = ref([]);
-  const currentAppId = ref(null);
-  const viewMode = ref('preview');
-  const codeTextarea = ref(null);
+// 🔥 主题配置 (紫/洋红系)
+const themeOverrides = {
+  common: {
+    primaryColor: '#8b5cf6', // Violet 500
+    primaryColorHover: '#a78bfa',
+    primaryColorPressed: '#7c3aed',
+  },
+  Input: {
+    borderFocus: '1px solid #8b5cf6',
+    boxShadowFocus: '0 0 0 2px rgba(139, 92, 246, 0.2)',
+  }
+};
 
-  // 游戏列表只显示 [GAME] 开头的
-  const gameHistory = computed(() => historyList.value.filter(item => item.full_req.startsWith('[GAME]')));
+// --- 以下业务逻辑保持 100% 原样 ---
 
-  // 🔥🔥🔥 核心修复：这里必须是纯 URL，不能带 []() 🔥🔥🔥
-  const API_BASE = `${import.meta.env.VITE_API_BASE_URL}/api/game`; // 🔥 修改
-  const HISTORY_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/history`; // 🔥 修改
-  const LOAD_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/load`; // 🔥 修改
-  const DELETE_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/delete`; // 🔥 修改
+const requirement = ref('');
+const generatedHtml = ref('');
+const streamBuffer = ref('');
+const isStreaming = ref(false);
+const historyList = ref([]);
+const currentAppId = ref(null);
+const viewMode = ref('preview');
+const codeTextarea = ref(null);
 
-  onMounted(() => fetchHistory());
+// 游戏列表只显示 [GAME] 开头的
+const gameHistory = computed(() => historyList.value.filter(item => item.full_req.startsWith('[GAME]')));
 
-  watch(streamBuffer, () => {
-    if (codeTextarea.value) codeTextarea.value.scrollTop = codeTextarea.value.scrollHeight;
-  });
+// 🔥🔥🔥 核心修复：这里必须是纯 URL，不能带 []() 🔥🔥🔥
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL}/api/game`; 
+const HISTORY_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/history`; 
+const LOAD_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/load`; 
+const DELETE_API = `${import.meta.env.VITE_API_BASE_URL}/api/generator/delete`; 
 
-  const fetchHistory = async () => {
-    try {
-      const res = await fetch(HISTORY_API);
-      historyList.value = await res.json();
-    } catch (e) { console.error(e); }
-  };
+onMounted(() => fetchHistory());
 
-  const generateGameStream = async () => {
-    if (!requirement.value.trim()) return;
-    isStreaming.value = true;
-    streamBuffer.value = '';
-    generatedHtml.value = '';
-    currentAppId.value = null;
-    viewMode.value = 'code';
+watch(streamBuffer, () => {
+  if (codeTextarea.value) codeTextarea.value.scrollTop = codeTextarea.value.scrollHeight;
+});
 
-    try {
-      const response = await fetch(`${API_BASE}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requirement: requirement.value })
-      });
+const fetchHistory = async () => {
+  try {
+    const res = await fetch(HISTORY_API);
+    historyList.value = await res.json();
+  } catch (e) { console.error(e); }
+};
 
-      if (!response.ok) throw new Error(response.statusText);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+const generateGameStream = async () => {
+  if (!requirement.value.trim()) return;
+  isStreaming.value = true;
+  streamBuffer.value = '';
+  generatedHtml.value = '';
+  currentAppId.value = null;
+  viewMode.value = 'code';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const data = JSON.parse(line);
-            if (data.type === 'chunk') streamBuffer.value += data.content;
-            else if (data.type === 'done') {
-              generatedHtml.value = data.html;
-              currentAppId.value = data.id;
-              streamBuffer.value = '';
-              viewMode.value = 'preview';
-              await fetchHistory();
-            }
-          } catch (e) {}
-        }
+  try {
+    const response = await fetch(`${API_BASE}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requirement: requirement.value })
+    });
+
+    if (!response.ok) throw new Error(response.statusText);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.type === 'chunk') streamBuffer.value += data.content;
+          else if (data.type === 'done') {
+            generatedHtml.value = data.html;
+            currentAppId.value = data.id;
+            streamBuffer.value = '';
+            viewMode.value = 'preview';
+            await fetchHistory();
+          }
+        } catch (e) {}
       }
-    } catch (e) { alert(e.message); }
-    finally { isStreaming.value = false; requirement.value = ''; }
-  };
+    }
+  } catch (e) { alert(e.message); }
+  finally { isStreaming.value = false; requirement.value = ''; }
+};
 
-  const loadGame = async (id) => {
-    if (currentAppId.value === id) return;
-    isStreaming.value = true;
-    viewMode.value = 'preview';
-    try {
-      const res = await fetch(`${LOAD_API}/${id}`);
-      const data = await res.json();
-      generatedHtml.value = data.html;
-      currentAppId.value = id;
-    } finally { isStreaming.value = false; }
-  };
+const loadGame = async (id) => {
+  if (currentAppId.value === id) return;
+  isStreaming.value = true;
+  viewMode.value = 'preview';
+  try {
+    const res = await fetch(`${LOAD_API}/${id}`);
+    const data = await res.json();
+    generatedHtml.value = data.html;
+    currentAppId.value = id;
+  } finally { isStreaming.value = false; }
+};
 
-  const deleteApp = async (id) => {
-    if (!confirm('Del?')) return;
-    await fetch(`${DELETE_API}/${id}`, { method: 'DELETE' });
-    await fetchHistory();
-    if (currentAppId.value === id) { generatedHtml.value = ''; currentAppId.value = null; }
-  };
+const deleteApp = async (id) => {
+  if (!confirm('Del?')) return;
+  await fetch(`${DELETE_API}/${id}`, { method: 'DELETE' });
+  await fetchHistory();
+  if (currentAppId.value === id) { generatedHtml.value = ''; currentAppId.value = null; }
+};
 
-  const refreshIframe = () => {
-    const html = generatedHtml.value;
-    generatedHtml.value = '';
-    nextTick(() => generatedHtml.value = html);
-  };
-  const copyCode = () => navigator.clipboard.writeText(generatedHtml.value);
-  </script>
+const refreshIframe = () => {
+  const html = generatedHtml.value;
+  generatedHtml.value = '';
+  nextTick(() => generatedHtml.value = html);
+};
+const copyCode = () => navigator.clipboard.writeText(generatedHtml.value);
+</script>
 
-  <style scoped>
-  /* 游戏主题样式 */
-  .ide-container { display: flex; height: 100%; width: 100%; background-color: #1e1e24; color: #d0cfd2; font-family: 'Consolas', monospace; overflow: hidden; border-radius: 8px; }
-  .sidebar-panel { width: 260px; background-color: #25252e; border-right: 1px solid #000; display: flex; flex-direction: column; }
-  .sidebar-header { padding: 15px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-  .sidebar-header h2 { color: #a78bfa; margin: 0; font-size: 16px; }
-  .badge { background-color: #8b5cf6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-
-  .history-list { flex: 1; overflow-y: auto; padding: 10px; }
-  .history-item { padding: 12px; margin-bottom: 8px; background-color: #2d2d38; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
-  .history-item:hover { border-color: #666; }
-  .history-item.active { background-color: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; }
-  .item-title { font-size: 13px; color: #eee; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
-  .delete-btn { background: none; border: none; color: #666; cursor: pointer; }
-  .delete-btn:hover { color: #ff4d4d; }
-
-  .main-editor { flex: 1; display: flex; flex-direction: column; }
-  .status-bar { height: 48px; background-color: #25252e; border-bottom: 1px solid #000; display: flex; align-items: center; padding: 0 20px; gap: 20px; }
-  .traffic-lights { display: flex; gap: 8px; margin-right: 10px; }
-  .light { width: 12px; height: 12px; border-radius: 50%; }
-  .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
-  .view-toggles { display: flex; background: #1a1a22; border-radius: 6px; padding: 2px; }
-  .toggle-btn { background: transparent; border: none; color: #888; padding: 4px 12px; font-size: 12px; cursor: pointer; border-radius: 4px; }
-  .toggle-btn.active { background: #8b5cf6; color: white; }
-  .status-text { font-size: 13px; color: #888; flex: 1; text-align: center; }
-  .action-btn { background-color: #333; color: #ccc; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-
-  .content-viewport { flex: 1; position: relative; overflow: hidden; background-color: #000; }
-  .viewport-inner { width: 100%; height: 100%; position: relative; }
-  .app-frame { width: 100%; height: 100%; border: none; }
-  .empty-state { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #1e1e24; color: #666; }
-  .empty-icon { font-size: 60px; margin-bottom: 20px; opacity: 0.3; }
-
-  .code-mode { background-color: #282c34; display: flex; flex-direction: column; }
-  .code-actions { padding: 8px; background: #21252b; border-bottom: 1px solid #181a1f; display: flex; justify-content: flex-end; }
-  .copy-btn { background: #8b5cf6; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-  .code-viewer { flex: 1; width: 100%; background: #282c34; color: #d19a66; border: none; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.5; resize: none; outline: none; white-space: pre; }
-
-  .input-area { background-color: #25252e; padding: 15px 20px; border-top: 1px solid #000; }
-  .input-wrapper { position: relative; display: flex; align-items: center; }
-  .input-icon { position: absolute; left: 15px; font-size: 18px; }
-  .prompt-input { width: 100%; background-color: #1a1a22; border: 1px solid #333; border-radius: 8px; padding: 14px 100px 14px 45px; color: white; font-size: 14px; outline: none; transition: border-color 0.2s; }
-  .prompt-input:focus { border-color: #8b5cf6; }
-  .generate-btn { position: absolute; right: 6px; background: linear-gradient(90deg, #8b5cf6, #d946ef); color: white; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-  .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #444; }
-  </style>
+<style scoped>
+/* 滚动条美化 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6;
+}
+</style>

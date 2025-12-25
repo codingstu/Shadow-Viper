@@ -1,59 +1,65 @@
 <template>
-  <div class="app-layout">
-    <nav class="sidebar">
-      <div class="logo">🕷️</div>
+  <n-config-provider :theme="darkTheme">
+    <n-message-provider>
+      <div class="app-layout">
+        <nav class="sidebar">
+          <div class="logo">🕷️</div>
 
-      <div class="nav-item" :class="{ active: currentModule === 'crawler' }" @click="currentModule = 'crawler'">
-        <span class="icon">🕸️</span><span class="text">Viper 爬虫</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'alchemy' }" @click="currentModule = 'alchemy'">
-        <span class="icon">⚗️</span><span class="text">Alchemy 炼金</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'proxy' }" @click="currentModule = 'proxy'">
-        <span class="icon">🌐</span><span class="text">猎手 IP 池</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'nodes' }" @click="currentModule = 'nodes'">
-        <span class="icon">🛰️</span><span class="text">Shadow Matrix</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'cyberrange' }" @click="currentModule = 'cyberrange'">
-        <span class="icon">🛡️</span><span class="text">Cyber Range</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'eagle' }" @click="currentModule = 'eagle'">
-        <span class="icon">👁️</span><span class="text">Eagle Eye</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'refinery' }" @click="currentModule = 'refinery'">
-        <span class="icon">🏭</span><span class="text">Data Refinery</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'app_gen' }" @click="currentModule = 'app_gen'">
-        <span class="icon">📱</span><span class="text">App 创世</span>
-      </div>
-      <div class="nav-item" :class="{ active: currentModule === 'game_gen' }" @click="currentModule = 'game_gen'">
-        <span class="icon">🎮</span><span class="text">Game 创世</span>
-      </div>
-    </nav>
-
-    <main class="content-area">
-      <Suspense>
-        <template #default>
-          <KeepAlive :max="3">
-            <component :is="currentComponent" :key="currentModule" />
-          </KeepAlive>
-        </template>
-
-        <template #fallback>
-          <div class="loading-placeholder">
-            <div class="spinner"></div>
-            <p class="loading-text">正在加载模块...</p>
+          <div class="nav-item" :class="{ active: currentModule === 'crawler' }" @click="currentModule = 'crawler'">
+            <span class="icon">🕸️</span><span class="text">Viper 爬虫</span>
           </div>
-        </template>
-      </Suspense>
-    </main>
-  </div>
+          <div class="nav-item" :class="{ active: currentModule === 'alchemy' }" @click="currentModule = 'alchemy'">
+            <span class="icon">⚗️</span><span class="text">Alchemy 炼金</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'proxy' }" @click="currentModule = 'proxy'">
+            <span class="icon">🌐</span><span class="text">代理猎手池</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'nodes' }" @click="currentModule = 'nodes'">
+            <span class="icon">🛰️</span><span class="text">节点猎手</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'cyberrange' }" @click="currentModule = 'cyberrange'">
+            <span class="icon">🛡️</span><span class="text">Cyber Range</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'eagle' }" @click="currentModule = 'eagle'">
+            <span class="icon">👁️</span><span class="text">Eagle Eye</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'refinery' }" @click="currentModule = 'refinery'">
+            <span class="icon">🏭</span><span class="text">Data Refinery</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'app_gen' }" @click="currentModule = 'app_gen'">
+            <span class="icon">📱</span><span class="text">App 创世</span>
+          </div>
+          <div class="nav-item" :class="{ active: currentModule === 'game_gen' }" @click="currentModule = 'game_gen'">
+            <span class="icon">🎮</span><span class="text">Game 创世</span>
+          </div>
+        </nav>
+
+        <main class="content-area">
+          <Suspense>
+            <template #default>
+              <KeepAlive :max="3">
+                <component :is="currentComponent" :key="currentModule" />
+              </KeepAlive>
+            </template>
+
+            <template #fallback>
+              <div class="loading-placeholder">
+                <div class="spinner"></div>
+                <p class="loading-text">正在加载模块...</p>
+              </div>
+            </template>
+          </Suspense>
+        </main>
+      </div>
+    </n-message-provider>
+  </n-config-provider>
 </template>
 
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue';
+import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
 
+// 🔥 异步按需加载 (只有点击时才下载代码)
 const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
 const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
 const ProxyStation = defineAsyncComponent(() => import('./components/ProxyStation/ProxyStation.vue'));

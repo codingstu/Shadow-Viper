@@ -1,117 +1,190 @@
 <template>
-  <div class="alchemy-container">
-    <div class="header">
-      <div class="title-box">
-        <span class="icon">🌌</span>
-        <div class="text-group">
-          <h1>Chaos Humanizer <span class="badge">Ultra</span></h1>
-          <p>多维语言熵增系统：思维链可视化 · 自动回译 · 深度去重</p>
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+    <n-global-style />
+    <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
+      
+      <div class="shrink-0 text-center mb-4 md:mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-500">
+          🌌 Chaos Humanizer <span class="text-xs bg-purple-600/30 text-purple-300 px-2 py-0.5 rounded ml-2 align-middle border border-purple-500/30">Ultra</span>
+        </h1>
+        <p class="text-xs md:text-sm text-gray-500 mt-2">
+          多维语言熵增系统：思维链可视化 · 自动回译 · 深度去重
+        </p>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        
+        <div class="flex-1 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden min-h-[300px]">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-gray-300">📄 原始文本</span>
+              <transition name="pop">
+                <n-tag v-if="inputAiScore !== null" round size="small" :bordered="false"
+                  :class="inputAiScore > 50 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'">
+                  🤖 {{ inputAiScore }}% AI
+                </n-tag>
+              </transition>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500">{{ sourceText.length }} chars</span>
+              <n-button text class="text-gray-400 hover:text-red-400" @click="clearAll">
+                <template #icon>✕</template>
+              </n-button>
+            </div>
+          </div>
+          
+          <div class="flex-1 relative bg-[#161616]">
+            <textarea 
+              v-model="sourceText" 
+              placeholder="在此粘贴论文... 系统将自动检测 AI 浓度并清洗" 
+              class="w-full h-full bg-transparent p-4 resize-none outline-none text-gray-300 text-sm leading-relaxed font-serif placeholder-gray-700 custom-scrollbar"
+              spellcheck="false"
+            ></textarea>
+          </div>
         </div>
+
+        <div class="shrink-0 w-full lg:w-72 flex flex-col gap-4">
+          
+          <div class="flex justify-center py-4 bg-[#1e1e1e] rounded-xl border border-gray-800 lg:py-8">
+            <button 
+              @click="startPipeline" 
+              :disabled="isLoading || !sourceText"
+              class="relative w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 shadow-[0_0_20px_rgba(6,182,212,0.5)] transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(6,182,212,0.8)] disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center overflow-hidden"
+            >
+              <div v-if="isLoading" class="absolute inset-0 border-4 border-t-transparent border-white rounded-full animate-spin"></div>
+              <div class="z-10 flex flex-col items-center text-white">
+                <span class="text-2xl mb-1 group-hover:animate-bounce">{{ isLoading ? '⚛️' : '🚀' }}</span>
+                <span class="text-[10px] font-bold uppercase">{{ isLoading ? 'Running' : 'Start' }}</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="flex-1 flex flex-col bg-black rounded-xl border border-gray-800 shadow-inner overflow-hidden min-h-[200px]">
+            <div class="p-2 bg-[#111] border-b border-gray-800 flex items-center gap-2">
+              <div class="flex gap-1.5">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></div>
+              </div>
+              <span class="text-[10px] text-gray-500 font-mono ml-auto">Kernel Log</span>
+            </div>
+            <div class="flex-1 p-3 overflow-y-auto font-mono text-[10px] space-y-1 custom-scrollbar text-cyan-400" ref="logContainer">
+              <div v-for="(log, idx) in logs" :key="idx" class="break-all">
+                <span class="text-blue-600 mr-1">></span>{{ log }}
+              </div>
+              <div v-if="isLoading" class="animate-pulse">_</div>
+            </div>
+          </div>
+
+          <div v-if="pipelinePath.length > 0" class="bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 flex flex-col items-center gap-2">
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest">Process Chain</span>
+            <div class="flex items-center gap-1 w-full justify-center overflow-hidden">
+              <div class="w-6 h-6 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-[8px] text-gray-400 shrink-0">
+                {{ originLang || '?' }}
+              </div>
+              <div class="w-4 h-0.5 bg-gray-700"></div>
+              
+              <div v-for="(lang, idx) in pipelinePath" :key="idx" class="flex items-center">
+                <div 
+                  class="w-6 h-6 rounded-full border flex items-center justify-center text-[8px] transition-all duration-500 shrink-0"
+                  :class="currentLang === lang ? 'bg-cyan-500/20 border-cyan-400 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] scale-110' 
+                         : (isStepDone(lang) ? 'bg-transparent border-blue-600 text-blue-600' : 'bg-gray-800 border-gray-700 text-gray-600')"
+                >
+                  {{ lang }}
+                </div>
+                <div v-if="idx < pipelinePath.length - 1" class="w-2 h-0.5 bg-gray-700 mx-0.5"></div>
+              </div>
+              
+              <div class="w-4 h-0.5 bg-gray-700"></div>
+              <div class="w-6 h-6 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-[8px] text-gray-400 shrink-0"
+                :class="{ 'border-emerald-500 text-emerald-500': currentLang === 'FINAL' }">
+                END
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="flex-1 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden min-h-[300px]">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-gray-300">
+                {{ isLoading ? '⚗️ 正在熔炼...' : '✨ 最终产物' }}
+              </span>
+              <transition name="pop">
+                <n-tag v-if="finalAiScore !== null" round size="small" :bordered="false"
+                  :class="finalAiScore < 30 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'">
+                  😊 {{ finalAiScore }}% AI
+                </n-tag>
+              </transition>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <div v-if="resultText && !isLoading" class="flex bg-black rounded p-0.5 border border-gray-700">
+                <button 
+                  @click="viewMode = 'text'"
+                  class="px-2 py-0.5 text-xs rounded transition-colors"
+                  :class="viewMode === 'text' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'"
+                >纯文本</button>
+                <button 
+                  @click="viewMode = 'diff'"
+                  class="px-2 py-0.5 text-xs rounded transition-colors"
+                  :class="viewMode === 'diff' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'"
+                >差异</button>
+              </div>
+              <n-button v-if="resultText && !isLoading" size="tiny" secondary type="primary" @click="copyResult">
+                📋
+              </n-button>
+            </div>
+          </div>
+
+          <div class="flex-1 relative bg-[#161616] overflow-hidden">
+            <div v-if="isLoading" class="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center font-mono">
+              <div class="text-8xl font-black text-white/5 select-none absolute">{{ currentLang || 'INIT' }}</div>
+              <div class="z-20 text-cyan-400 text-xs px-8 text-center leading-relaxed max-w-md opacity-80 break-words">
+                {{ intermediateContent || '正在初始化神经链路...' }}
+              </div>
+              <div class="absolute bottom-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500 to-transparent animate-scan"></div>
+            </div>
+
+            <div v-else class="w-full h-full">
+              <textarea 
+                v-if="viewMode === 'text'" 
+                readonly 
+                v-model="resultText" 
+                placeholder="等待熔炼结果..."
+                class="w-full h-full bg-transparent p-4 resize-none outline-none text-gray-300 text-sm leading-relaxed font-serif custom-scrollbar"
+              ></textarea>
+              
+              <div 
+                v-else 
+                class="w-full h-full p-4 overflow-y-auto text-sm leading-loose font-serif text-gray-400 whitespace-pre-wrap custom-scrollbar" 
+                v-html="diffHtml"
+              ></div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
-
-    <div class="workspace">
-
-      <div class="panel input-panel">
-        <div class="panel-header">
-          <div class="ph-left">
-            <span class="panel-title">📄 原始文本</span>
-            <div class="ai-score-badge high" v-if="inputAiScore !== null">
-              <span class="score-icon">🤖</span>
-              <span class="score-val">{{ inputAiScore }}% AI</span>
-            </div>
-          </div>
-          <div class="actions">
-            <span class="char-count">{{ sourceText.length }} chars</span>
-            <button @click="clearAll" class="icon-btn">✕</button>
-          </div>
-        </div>
-        <div class="editor-anchor">
-          <textarea v-model="sourceText" placeholder="在此粘贴论文... 系统将自动检测 AI 浓度并清洗" class="magic-textarea source"
-            spellcheck="false"></textarea>
-        </div>
-      </div>
-
-      <div class="control-center">
-        <button @click="startPipeline" class="transmute-btn" :disabled="isLoading || !sourceText"
-          :class="{ 'processing': isLoading }">
-          <div class="btn-content">
-            <span v-if="!isLoading" class="btn-icon">⚛️</span>
-            <span v-else class="spinner"></span>
-            <span class="btn-text">{{ isLoading ? '运行中' : '启动熵增' }}</span>
-          </div>
-        </button>
-
-        <div class="neural-terminal">
-          <div class="terminal-header">
-            <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-            <span class="term-title">Kernel Log</span>
-          </div>
-          <div class="terminal-body" ref="logContainer">
-            <div v-for="(log, idx) in logs" :key="idx" class="term-line">
-              <span class="term-arrow">></span> {{ log }}
-            </div>
-            <div class="typing-cursor" v-if="isLoading">_</div>
-          </div>
-        </div>
-
-        <div class="process-viz" v-if="pipelinePath.length > 0">
-          <div class="path-steps">
-            <div class="viz-step start">{{ originLang || '?' }}</div>
-            <div class="viz-line"></div>
-            <div v-for="(lang, idx) in pipelinePath" :key="idx" class="viz-step mid"
-              :class="{ 'active': currentLang === lang, 'done': isStepDone(lang) }">
-              {{ lang }}
-            </div>
-            <div class="viz-line"></div>
-            <div class="viz-step end" :class="{ 'active': currentLang === 'FINAL' }">
-              {{ originLang || 'END' }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel output-panel">
-        <div class="panel-header">
-          <div class="ph-left">
-            <span class="panel-title">
-              {{ isLoading ? '⚗️ 重构中...' : '✨ 最终产物' }}
-            </span>
-            <div class="ai-score-badge low" v-if="finalAiScore !== null">
-              <span class="score-icon">😊</span>
-              <span class="score-val">{{ finalAiScore }}% AI</span>
-            </div>
-          </div>
-          <div class="actions">
-            <div class="view-toggle" v-if="resultText && !isLoading">
-              <button :class="{ active: viewMode === 'text' }" @click="viewMode = 'text'">纯文本</button>
-              <button :class="{ active: viewMode === 'diff' }" @click="viewMode = 'diff'">差异对比</button>
-            </div>
-            <button @click="copyResult" class="icon-btn copy" v-if="resultText && !isLoading">📋</button>
-          </div>
-        </div>
-
-        <div class="editor-anchor output-bg">
-          <div v-if="isLoading" class="intermediate-view">
-            <div class="lang-badge">{{ currentLang || 'INIT' }}</div>
-            <div class="matrix-text">{{ intermediateContent || '正在初始化...' }}</div>
-            <div class="scan-line"></div>
-          </div>
-
-          <div v-else class="final-view">
-            <textarea v-if="viewMode === 'text'" readonly v-model="resultText" placeholder="等待熔炼结果..."
-              class="magic-textarea result"></textarea>
-            <div v-else class="diff-view-container" v-html="diffHtml"></div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
+  </n-config-provider>
 </template>
 
 <script setup>
 import { ref, computed, nextTick } from 'vue';
+// 🔥 引入 Naive UI
+import { NConfigProvider, NGlobalStyle, NButton, NTag, darkTheme } from 'naive-ui';
+
+// 🔥 主题配置 (紫色/青色系)
+const themeOverrides = {
+  common: {
+    primaryColor: '#00e5ff',
+    primaryColorHover: '#33ebff',
+    primaryColorPressed: '#00b8cc',
+  },
+};
+
+// --- 以下业务逻辑保持 100% 原样 ---
 
 const sourceText = ref('');
 const resultText = ref('');
@@ -126,7 +199,7 @@ const originLang = ref('');
 const intermediateContent = ref('');
 const processedSteps = ref([]);
 
-// 🔥 新增：AI 分数
+// 🔥 AI 分数
 const inputAiScore = ref(null);
 const finalAiScore = ref(null);
 
@@ -151,11 +224,11 @@ const diffWords = (text1, text2) => {
   let html = [];
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && words1[i - 1] === words2[j - 1]) {
-      html.unshift(`<span class="diff-same">${words1[i - 1]}</span>`); i--; j--;
+      html.unshift(`<span class="text-gray-300">${words1[i - 1]}</span>`); i--; j--; // 普通文本
     } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      html.unshift(`<span class="diff-ins">${words2[j - 1]}</span>`); j--;
+      html.unshift(`<span class="bg-emerald-500/20 text-emerald-400 font-bold px-0.5 rounded">${words2[j - 1]}</span>`); j--; // 新增
     } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
-      html.unshift(`<span class="diff-del">${words1[i - 1]}</span>`); i--;
+      html.unshift(`<span class="bg-red-500/20 text-red-400 line-through px-0.5 rounded">${words1[i - 1]}</span>`); i--; // 删除
     }
   }
   return html.join('');
@@ -198,7 +271,7 @@ const startPipeline = async () => {
   finalAiScore.value = null;
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/alchemy/de_ai', {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/alchemy/de_ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: sourceText.value })
@@ -272,498 +345,37 @@ const copyResult = () => {
 </script>
 
 <style scoped>
-/* 全局样式 */
-.alchemy-container {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 60px);
-  color: #e0e0e0;
-  gap: 20px;
-  font-family: 'Inter', sans-serif;
-  overflow: hidden;
-}
-
-.header {
-  padding: 0 10px;
-  flex-shrink: 0;
-}
-
-.title-box {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.icon {
-  font-size: 32px;
-  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.6));
-}
-
-.text-group h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 800;
-  background: linear-gradient(to right, #00e5ff, #2979ff);
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-.badge {
-  font-size: 10px;
-  vertical-align: super;
-  background: #2979ff;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.text-group p {
-  margin: 4px 0 0;
-  color: #888;
-  font-size: 12px;
-}
-
-.workspace {
-  display: flex;
-  flex: 1;
-  gap: 20px;
-  padding-bottom: 20px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* 面板 */
-.panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  min-width: 0;
-}
-
-.panel-header {
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.ph-left {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: #ccc;
-}
-
-/* 🔥 AI 分数徽章 */
-.ai-score-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-  border: 1px solid transparent;
-  animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-
-.ai-score-badge.high {
-  background: rgba(255, 82, 82, 0.1);
-  color: #ff5252;
-  border-color: rgba(255, 82, 82, 0.3);
-}
-
-.ai-score-badge.low {
-  background: rgba(105, 240, 174, 0.1);
-  color: #69f0ae;
-  border-color: rgba(105, 240, 174, 0.3);
-}
-
-@keyframes popIn {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* 编辑锚点 */
-.editor-anchor {
-  flex: 1;
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.magic-textarea {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100% !important;
-  height: 100% !important;
-  background: transparent;
-  border: none;
-  padding: 20px;
-  color: #e0e0e0;
-  font-size: 15px;
-  line-height: 1.8;
-  resize: none;
-  outline: none;
-  font-family: 'Georgia', serif;
-  overflow-y: auto !important;
-  box-sizing: border-box;
-}
-
-/* 中控 */
-.control-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  width: 240px;
-  padding-top: 20px;
-  flex-shrink: 0;
-}
-
-.transmute-btn {
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg, #2979ff, #00e5ff);
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 0 20px rgba(41, 121, 255, 0.5);
-  transition: all 0.3s;
-  flex-shrink: 0;
-}
-
-.transmute-btn:hover:not(:disabled) {
-  transform: scale(1.1);
-  box-shadow: 0 0 40px rgba(0, 229, 255, 0.8);
-}
-
-.btn-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.btn-icon {
-  font-size: 24px;
-}
-
-.btn-text {
-  font-size: 9px;
-  font-weight: bold;
-}
-
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 3px solid #fff;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.neural-terminal {
-  width: 100%;
-  flex: 1;
-  background: #000;
-  border-radius: 8px;
-  border: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: 'Consolas', monospace;
-  font-size: 11px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-  min-height: 0;
-}
-
-.terminal-header {
-  background: #222;
-  padding: 5px 10px;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  border-bottom: 1px solid #333;
-  flex-shrink: 0;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.red {
-  background: #ff5f56;
-}
-
-.yellow {
-  background: #ffbd2e;
-}
-
-.green {
-  background: #27c93f;
-}
-
-.term-title {
-  color: #666;
-  margin-left: auto;
-  font-size: 9px;
-}
-
-.terminal-body {
-  flex: 1;
-  padding: 10px;
-  overflow-y: auto;
-  color: #00e5ff;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.term-arrow {
-  color: #2979ff;
-  margin-right: 5px;
-}
-
-.typing-cursor {
-  animation: blink 1s infinite;
-  display: inline-block;
-}
-
-.process-viz {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-bottom: 10px;
-}
-
-.path-steps {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.viz-step {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #222;
-  border-radius: 50%;
-  border: 1px solid #444;
-  color: #666;
-  font-size: 10px;
-  font-weight: bold;
-  transition: all 0.5s;
-}
-
-.viz-line {
-  width: 10px;
-  height: 2px;
-  background: #333;
-}
-
-.viz-step.active {
-  border-color: #00e5ff;
-  color: #fff;
-  background: rgba(0, 229, 255, 0.2);
-  box-shadow: 0 0 10px #00e5ff;
-  transform: scale(1.1);
-}
-
-.viz-step.done {
-  border-color: #2979ff;
-  color: #2979ff;
-  background: transparent;
-}
-
-/* 视图 */
-.intermediate-view {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.3);
-  color: #00e5ff;
-  font-family: monospace;
-  overflow: hidden;
-}
-
-.lang-badge {
-  font-size: 80px;
-  opacity: 0.1;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-weight: 900;
-  z-index: 0;
-}
-
-.matrix-text {
-  z-index: 2;
-  text-align: center;
-  max-width: 90%;
-  white-space: pre-wrap;
-  font-size: 12px;
-  line-height: 1.5;
-  opacity: 0.8;
-}
-
-.scan-line {
-  height: 2px;
-  width: 100%;
-  background: linear-gradient(90deg, transparent, #00e5ff, transparent);
-  position: absolute;
-  bottom: 0;
-  animation: scan 1.2s infinite linear;
-}
-
-.final-view {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.diff-view-container {
-  width: 100%;
-  height: 100%;
-  padding: 20px;
-  overflow-y: auto;
-  font-size: 15px;
-  line-height: 2;
-  font-family: 'Georgia', serif;
-  color: #888;
-  white-space: pre-wrap;
-  box-sizing: border-box;
-}
-
-:deep(.diff-del) {
-  background: rgba(244, 67, 54, 0.2);
-  color: #ff8a80;
-  text-decoration: line-through;
-  padding: 0 2px;
-  border-radius: 3px;
-}
-
-:deep(.diff-ins) {
-  background: rgba(0, 230, 118, 0.2);
-  color: #69f0ae;
-  font-weight: bold;
-  padding: 0 2px;
-  border-radius: 3px;
-}
-
-:deep(.diff-same) {
-  color: #ccc;
-}
-
-.view-toggle button {
-  background: transparent;
-  border: 1px solid #444;
-  color: #888;
-  margin-left: 5px;
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 12px;
-}
-
-.view-toggle button.active {
-  background: #2979ff;
-  color: white;
-  border-color: #2979ff;
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  font-size: 16px;
-  margin-left: 10px;
-}
-
-/* 滚动条 */
-::-webkit-scrollbar {
+/* 滚动条美化 */
+.custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
 }
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
   border-radius: 3px;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #42b983;
 }
 
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
+/* 徽章弹出动画 */
+.pop-enter-active, .pop-leave-active {
+  transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+.pop-enter-from, .pop-leave-to {
+  transform: scale(0.5);
+  opacity: 0;
 }
 
+/* 扫描线动画 */
 @keyframes scan {
-  0% {
-    transform: translateY(0);
-  }
-
-  100% {
-    transform: translateY(-300px);
-  }
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-300px); }
 }
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
+.animate-scan {
+  animation: scan 1.5s linear infinite;
 }
 </style>

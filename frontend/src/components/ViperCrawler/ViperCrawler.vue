@@ -1,174 +1,282 @@
 <template>
-  <div class="viper-container">
-    <div class="header">
-      <h1>🕷️ Viper 爬虫控制台</h1>
-      <p>多引擎驱动：极速 API · 智能 HTML 解析 · 深度流媒体嗅探</p>
-    </div>
-
-    <div class="input-section">
-      <div class="input-group">
-        <input v-model="targetUrl" type="text" placeholder="输入网址 (支持 MissAV, Reddit, 知乎, B站等)" :disabled="isCrawling" />
-
-        <select v-model="crawlMode" :disabled="isCrawling" class="mode-select">
-          <option value="text">📄 极速文本</option>
-          <option value="media">🎬 深度媒体</option>
-        </select>
-
-        <select v-model="networkType" :disabled="isCrawling" class="mode-select network-select">
-          <option value="auto">🤖 自动模式</option>
-          <option value="node">🛰️ Shadow Matrix</option>
-          <option value="proxy">🌐 猎手 IP 池</option>
-          <option value="direct">⚡️ 仅直连</option>
-        </select>
-
-        <button 
-          @click="startCrawl" 
-          :disabled="isCrawling || !targetUrl"
-          :class="{ 'processing': isCrawling }"
-        >
-          <span v-if="!isCrawling">开始爬取</span>
-          <span v-else>⏳ 停止 (运行中...)</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="main-display">
-      <div class="panel log-panel">
-        <div class="panel-header">
-          <div class="header-title-group">
-            <span>系统日志</span>
-            <div class="status-indicator" :class="{ 'active': isCrawling || isAnalyzing }">
-              <span class="status-dot"></span>
-              <span class="status-text">{{ isCrawling ? '爬取中...' : (isAnalyzing ? '分析中...' : '任务空闲') }}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="log-window" ref="logWindowRef">
-          <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="log.type">
-            <span class="time">[{{ log.time }}]</span>
-            <span class="msg">> {{ log.text }}</span>
-          </div>
-          <div v-if="logs.length === 0" class="placeholder">等待指令输入...</div>
-        </div>
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+    <n-global-style />
+    <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
+      
+      <div class="shrink-0 text-center mb-4 md:mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">
+          🕷️ Viper 爬虫控制台
+        </h1>
+        <p class="text-xs md:text-sm text-gray-500 mt-2">
+          多引擎驱动：极速 API · 智能 HTML 解析 · 深度流媒体嗅探
+        </p>
       </div>
 
-      <div class="panel preview-panel">
-        <div class="panel-header">
-          <span>{{ crawlMode === 'text' ? '文本数据 (表格视图)' : '媒体/混合数据 (流视图)' }}</span>
-          <div class="header-actions">
-            <span v-if="previewData.length" class="count-tag">{{ previewData.length }} 条数据</span>
+      <div class="shrink-0 mb-4 max-w-6xl mx-auto w-full">
+        <div class="flex flex-col md:flex-row gap-3">
+          
+          <n-input 
+            v-model:value="targetUrl" 
+            type="text" 
+            placeholder="输入网址 (支持 MissAV, Reddit, 知乎, B站等)" 
+            :disabled="isCrawling" 
+            size="large"
+            class="flex-1"
+            clearable
+          >
+            <template #prefix>🔗</template>
+          </n-input>
+
+          <div class="flex gap-2">
+            <n-select 
+              v-model:value="crawlMode" 
+              :options="crawlModeOptions" 
+              :disabled="isCrawling" 
+              size="large"
+              class="w-32 md:w-40" 
+            />
             
-            <button 
-              v-if="previewData.length > 0 && crawlMode === 'text'" 
-              @click="startBattle" 
-              class="mini-btn battle-btn"
-              :disabled="isAnalyzing"
-            >
-              {{ isAnalyzing ? '⚔️ 分析战局中...' : '⚔️ 开启赛博斗兽场' }}
-            </button>
+            <n-select 
+              v-model:value="networkType" 
+              :options="networkOptions" 
+              :disabled="isCrawling" 
+              size="large"
+              class="w-32 md:w-40" 
+            />
+          </div>
 
-            <button v-if="previewData.length > 0" @click="clearPreview" class="mini-btn">清除</button>
+          <n-button 
+            type="primary" 
+            size="large" 
+            @click="startCrawl" 
+            :disabled="isCrawling || !targetUrl"
+            :loading="isCrawling"
+            class="w-full md:w-auto px-8 font-bold shadow-[0_0_15px_rgba(66,185,131,0.4)]"
+          >
+            {{ isCrawling ? '停止运行' : '开始爬取' }}
+          </n-button>
+        </div>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        
+        <div class="w-full lg:w-1/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-gray-300">📟 系统日志</span>
+              <div 
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs transition-all duration-300"
+                :class="isCrawling || isAnalyzing 
+                  ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-400' 
+                  : 'bg-gray-800 border-gray-700 text-gray-500'"
+              >
+                <span class="w-2 h-2 rounded-full transition-colors duration-300" 
+                  :class="isCrawling || isAnalyzing ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]' : 'bg-gray-500'">
+                </span>
+                {{ isCrawling ? '爬取中...' : (isAnalyzing ? '分析中...' : '任务空闲') }}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-4 bg-[#1a1a1a] font-mono text-xs md:text-sm space-y-1 custom-scrollbar" ref="logWindowRef">
+            <div v-for="(log, idx) in logs" :key="idx" class="break-all leading-relaxed">
+              <span class="text-gray-500 mr-2">[{{ log.time }}]</span>
+              <span :class="{
+                'text-blue-400': log.type === 'info',
+                'text-emerald-400': log.type === 'success',
+                'text-red-400': log.type === 'error'
+              }">> {{ log.text }}</span>
+            </div>
+            <div v-if="logs.length === 0" class="text-gray-600 text-center mt-10 italic">
+              _等待指令输入...
+            </div>
           </div>
         </div>
 
-        <div class="preview-content-area">
+        <div class="w-full lg:w-2/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0 flex-wrap gap-2">
+            <span class="font-bold text-gray-300">
+              {{ crawlMode === 'text' ? '📊 文本视图' : '🎬 媒体流视图' }}
+            </span>
+            
+            <div class="flex items-center gap-2">
+              <n-tag v-if="previewData.length" type="info" size="small" round>
+                {{ previewData.length }} 条数据
+              </n-tag>
+              
+              <n-button 
+                v-if="previewData.length > 0 && crawlMode === 'text'" 
+                @click="startBattle" 
+                size="tiny"
+                type="warning"
+                ghost
+                :disabled="isAnalyzing"
+              >
+                {{ isAnalyzing ? '⚔️ 分析中...' : '⚔️ 开启战场' }}
+              </n-button>
 
-          <div v-if="showBattlefield" class="battlefield-container">
-            <div class="battle-header">
-              <div class="team-score red">{{ teamRed.name || '红方' }}: {{ teamRed.warriors.filter(w => w.hp > 0).length }}</div>
-              <div class="vs-badge">VS</div>
-              <div class="team-score blue">{{ teamBlue.name || '蓝方' }}: {{ teamBlue.warriors.filter(w => w.hp > 0).length }}</div>
-              <button @click="closeBattle" class="close-battle-btn">✕</button>
-            </div>
-            <canvas ref="canvasRef" class="battle-canvas"></canvas>
-            <div v-if="winner" class="winner-overlay">
-              <h2>🏆 {{ winner.name }} 获胜!</h2>
-              <p>MVP: {{ mvp.id }} (造成 {{ mvp.damageDealt }} 点伤害)</p>
-              <button @click="resetBattle" class="restart-btn">再战一场</button>
+              <n-button 
+                v-if="previewData.length > 0" 
+                @click="clearPreview" 
+                size="tiny" 
+                type="error" 
+                secondary
+              >
+                清除
+              </n-button>
             </div>
           </div>
 
-          <div v-else-if="crawlMode === 'text'" class="table-container">
-            <table v-if="previewData.length > 0">
-              <thead>
-                <tr>
-                  <th class="col-type">类型</th>
-                  <th class="col-content">内容</th>
-                  <th class="col-remark">备注</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in previewData" :key="idx">
-                  <td><span class="type-tag">{{ row['类型'] }}</span></td>
-                  <td class="content-cell" :title="row['内容']">{{ row['内容'] }}</td>
-                  <td class="remark-cell">{{ row['备注'] }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="flex-1 bg-[#161616] relative overflow-hidden">
+            
+            <div v-if="showBattlefield" class="absolute inset-0 flex flex-col bg-black z-20">
+              <div class="h-10 bg-white/10 flex justify-between items-center px-4 shrink-0 backdrop-blur-sm">
+                <span class="text-red-500 font-bold">{{ teamRed.name || '红方' }}: {{ teamRed.warriors.filter(w => w.hp > 0).length }}</span>
+                <span class="text-gray-400 italic font-serif">VS</span>
+                <span class="text-blue-500 font-bold">{{ teamBlue.name || '蓝方' }}: {{ teamBlue.warriors.filter(w => w.hp > 0).length }}</span>
+                <button @click="closeBattle" class="text-white hover:text-red-500 text-xl">✕</button>
+              </div>
+              <div class="flex-1 relative w-full h-full">
+                <canvas ref="canvasRef" class="w-full h-full block"></canvas>
+                <div v-if="winner" class="absolute inset-0 bg-black/80 flex flex-col justify-center items-center text-amber-400 z-30 animate-in fade-in duration-500">
+                  <h2 class="text-4xl font-bold mb-4">🏆 {{ winner.name }} 获胜!</h2>
+                  <p class="text-gray-300 mb-6">MVP: {{ mvp.id }} (伤害: {{ mvp.damageDealt }})</p>
+                  <n-button type="primary" @click="resetBattle">再战一场</n-button>
+                </div>
+              </div>
+            </div>
 
-            <div v-else class="preview-placeholder">
-              <div class="empty-state">
-                <span class="icon">📄</span>
+            <div v-else-if="crawlMode === 'text'" class="h-full w-full overflow-auto custom-scrollbar">
+              <n-table v-if="previewData.length > 0" size="small" :bordered="false" :single-line="false" class="bg-transparent text-gray-300">
+                <thead>
+                  <tr>
+                    <th class="bg-[#252529] text-emerald-500 w-24">类型</th>
+                    <th class="bg-[#252529] text-emerald-500">内容</th>
+                    <th class="bg-[#252529] text-emerald-500 w-32">备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, idx) in previewData" :key="idx" class="hover:bg-white/5 transition-colors">
+                    <td><n-tag size="small" :bordered="false" color="{ color: '#333', textColor: '#aaa' }">{{ row['类型'] }}</n-tag></td>
+                    <td class="break-all min-w-[200px]">{{ row['内容'] }}</td>
+                    <td class="text-gray-500 text-xs">{{ row['备注'] }}</td>
+                  </tr>
+                </tbody>
+              </n-table>
+              <div v-else class="flex flex-col items-center justify-center h-full text-gray-600">
+                <span class="text-6xl mb-4 opacity-20">📄</span>
                 <p>{{ isCrawling ? '正在解析数据...' : '暂无文本数据' }}</p>
-                <p class="sub-text">数据将在此处以宽屏表格形式展示</p>
               </div>
             </div>
-          </div>
 
-          <div v-else class="media-container">
-            <div v-if="mediaItems.length > 0" class="media-stream-list">
-              <div v-for="(item, idx) in mediaItems" :key="idx" class="media-card" :class="item.type">
-                <div v-if="item.type === 'video'" class="video-layout">
-                  <div class="video-player-wrapper">
-                    <video :ref="(el) => initVideoPlayer(el, item.url)" class="hls-player" controls
-                      :poster="proxyUrl(item.cover)" playsinline>
-                    </video>
-                    <div class="format-badge">{{ item.url.includes('.m3u8') ? 'HLS' : 'MP4' }}</div>
-                  </div>
-                  <div class="video-meta-side">
-                    <div class="cover-box" v-if="item.cover && item.cover !== 'No Cover'">
-                      <img :src="proxyUrl(item.cover)" alt="封面" @click="openLink(item.cover)">
-                      <span class="cover-label">封面</span>
+            <div v-else class="h-full w-full overflow-y-auto p-4 custom-scrollbar">
+              <div v-if="mediaItems.length > 0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div v-for="(item, idx) in mediaItems" :key="idx" 
+                     class="bg-[#252525] rounded-lg overflow-hidden border border-gray-700 hover:border-emerald-500/50 transition-colors flex flex-col">
+                  
+                  <template v-if="item.type === 'video'">
+                    <div class="relative aspect-video bg-black group">
+                      <video 
+                        :ref="(el) => initVideoPlayer(el, item.url)" 
+                        class="w-full h-full object-contain" 
+                        controls
+                        :poster="proxyUrl(item.cover)" 
+                        playsinline
+                      ></video>
+                      <div class="absolute top-2 left-2 bg-emerald-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded">
+                        {{ item.url.includes('.m3u8') ? 'HLS' : 'MP4' }}
+                      </div>
                     </div>
-                    <div class="meta-info">
-                      <span class="badge video">VIDEO</span>
-                      <h4 :title="item.title">{{ item.title || 'Unknown Video' }}</h4>
-                      <button class="copy-btn" @click="copyToClipboard(item.url)">复制地址</button>
+                    <div class="p-3 flex gap-3">
+                      <div v-if="item.cover && item.cover !== 'No Cover'" class="w-16 h-20 shrink-0 bg-black rounded overflow-hidden cursor-pointer hover:opacity-80" @click="openLink(item.cover)">
+                        <img :src="proxyUrl(item.cover)" class="w-full h-full object-cover">
+                      </div>
+                      <div class="flex-1 min-w-0 flex flex-col">
+                        <span class="text-xs font-bold text-amber-500 mb-1">VIDEO</span>
+                        <h4 class="text-sm text-gray-200 line-clamp-2 leading-tight mb-2" :title="item.title">{{ item.title || 'Unknown Video' }}</h4>
+                        <n-button size="tiny" secondary class="mt-auto w-full" @click="copyToClipboard(item.url)">复制地址</n-button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div v-else-if="item.type === 'image'" class="image-layout">
-                  <img :src="proxyUrl(item.url)" class="preview-img" @click="openLink(item.url)" loading="lazy" />
-                  <span class="badge image">IMG</span>
-                </div>
-                <div v-else class="text-card-layout">
-                  <div class="text-header">
-                    <span class="badge text">{{ item.rawType }}</span>
-                  </div>
-                  <p class="text-content">{{ item.content }}</p>
-                </div>
-              </div>
-            </div>
-            <div v-else class="preview-placeholder">
-              <div class="empty-state">
-                <span class="icon">🕸️</span>
-                <p>{{ isCrawling ? '正在渲染数据流...' : '暂无数据' }}</p>
-                <p class="sub-text">视频/图片/文本流将在此处显示</p>
-              </div>
-            </div>
-          </div>
+                  </template>
 
+                  <template v-else-if="item.type === 'image'">
+                    <div class="p-2 bg-[#222] flex justify-center items-center cursor-pointer" @click="openLink(item.url)">
+                      <img :src="proxyUrl(item.url)" class="max-h-[300px] object-contain" loading="lazy">
+                    </div>
+                    <div class="px-2 py-1 bg-[#252525] border-t border-gray-700 flex justify-between items-center">
+                      <span class="text-xs font-bold text-blue-400">IMG</span>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <div class="p-4 border-l-2 border-gray-500 bg-[#2a2a2a] h-full">
+                      <span class="text-xs font-bold text-gray-400 block mb-2">{{ item.rawType }}</span>
+                      <p class="text-sm text-gray-300 whitespace-pre-wrap break-all">{{ item.content }}</p>
+                    </div>
+                  </template>
+
+                </div>
+              </div>
+              <div v-else class="flex flex-col items-center justify-center h-full text-gray-600">
+                <span class="text-6xl mb-4 opacity-20">🎬</span>
+                <p>{{ isCrawling ? '正在渲染数据流...' : '暂无媒体数据' }}</p>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </n-config-provider>
 </template>
 
 <script setup>
 import { ref, nextTick, computed, onUnmounted } from 'vue';
+// 🔥 引入 Naive UI 组件和主题
+import { 
+  NConfigProvider, NGlobalStyle, NInput, NSelect, NButton, 
+  NTag, NTable, darkTheme 
+} from 'naive-ui';
 import Hls from 'hls.js';
 import axios from 'axios';
+
+// 🔥 定义 Naive UI 的主题覆盖 (定制主色调为赛博绿)
+const themeOverrides = {
+  common: {
+    primaryColor: '#42b983',
+    primaryColorHover: '#5cd29d',
+    primaryColorPressed: '#2a9163',
+  },
+  Input: {
+    color: '#1e1e1e',
+    textColor: '#fff',
+    border: '1px solid #333',
+  },
+  Select: {
+    peers: {
+      InternalSelection: {
+        color: '#252525',
+        textColor: '#fff',
+        border: '1px solid #333',
+      }
+    }
+  }
+};
+
+// 🔥 补充 Select 的选项数据 (Naive UI 必需)
+const crawlModeOptions = [
+  { label: '📄 极速文本', value: 'text' },
+  { label: '🎬 深度媒体', value: 'media' }
+];
+
+const networkOptions = [
+  { label: '🤖 自动模式', value: 'auto' },
+  { label: '🛰️ Shadow Matrix', value: 'node' },
+  { label: '🌐 猎手 IP 池', value: 'proxy' },
+  { label: '⚡️ 仅直连', value: 'direct' }
+];
+
+// --- 以下为原有业务逻辑，完全保持不变 ---
 
 const targetUrl = ref('');
 const crawlMode = ref('text');
@@ -433,570 +541,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 容器设置 */
-.viper-container {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 40px);
-  width: 100%;
-  background: #121212;
-  color: #e0e0e0;
-  box-sizing: border-box;
-  overflow: hidden;
+/* 滚动条美化 (Tailwind 默认不包含滚动条样式，这里手动补充) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-.header h1 {
-  color: #42b983;
-  margin: 0;
-  text-align: center;
-}
-
-.header p {
-  color: #666;
-  margin: 5px 0 20px 0;
-  text-align: center;
-}
-
-/* 输入区 */
-.input-section {
-  margin-bottom: 20px;
-  flex-shrink: 0;
-}
-
-.input-group {
-  display: flex;
-  gap: 10px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-input {
-  flex: 1;
-  padding: 12px;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  color: #fff;
-  border-radius: 6px;
-}
-
-.mode-select {
-  background: #252525;
-  color: #fff;
-  border: 1px solid #333;
-  padding: 0 15px;
-  border-radius: 6px;
-}
-
-.network-select {
-  background-color: #2c3e50 !important;
-  color: #ecf0f1 !important;
-  border-color: #34495e !important;
-}
-
-button {
-  padding: 0 30px;
-  background: #42b983;
-  border: none;
-  color: #fff;
-  font-weight: bold;
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.3s;
-}
-
-button:disabled {
-  background: #333;
-  color: #888;
-  cursor: not-allowed;
-}
-
-/* 🔥 按钮运行时的状态 */
-button.processing {
-  background: #2c3e50;
-  border: 1px solid #3e5871;
-  color: #fff;
-  cursor: wait;
-}
-
-/* 主显示区 */
-.main-display {
-  display: flex;
-  gap: 20px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.panel {
-  flex: 1 1 0px;
-  background: #1e1e1e;
-  border-radius: 12px;
-  border: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.panel-header {
-  padding: 10px 15px;
-  background: #252525;
-  border-bottom: 1px solid #333;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #ccc;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-
-/* 🔥 系统日志标题组样式 */
-.header-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* 🔥 呼吸灯样式 */
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: normal;
-  background: rgba(0,0,0,0.2);
-  padding: 2px 8px;
-  border-radius: 12px;
-  border: 1px solid #444;
-  color: #666;
-  transition: all 0.3s;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #666;
-  border-radius: 50%;
-  transition: all 0.3s;
-}
-
-/* 激活状态 */
-.status-indicator.active {
-  border-color: rgba(66, 185, 131, 0.5);
-  background: rgba(66, 185, 131, 0.1);
-  color: #42b983;
-}
-
-.status-indicator.active .status-dot {
-  background-color: #42b983;
-  box-shadow: 0 0 8px #42b983;
-  animation: breathe 1.5s infinite ease-in-out;
-}
-
-/* 呼吸动画 */
-@keyframes breathe {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.6; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-/* 日志窗口 */
-.log-window {
-  flex: 1;
-  padding: 15px;
-  overflow-y: auto;
-  font-family: 'Consolas', monospace;
-  font-size: 0.9em;
+.custom-scrollbar::-webkit-scrollbar-track {
   background: #1a1a1a;
 }
-
-.log-line {
-  margin-bottom: 5px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  word-break: break-all;
-}
-
-.time {
-  color: #555;
-  margin-right: 10px;
-}
-
-.info {
-  color: #64b5f6;
-}
-
-.success {
-  color: #81c784;
-}
-
-.error {
-  color: #e57373;
-}
-
-.download-box {
-  padding: 10px;
-  background: #252525;
-  text-align: center;
-  border-top: 1px solid #333;
-  flex-shrink: 0;
-}
-
-.download-btn {
-  color: #42b983;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-/* 预览区域 */
-.preview-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-content-area {
-  flex: 1;
-  background: #161616;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 文本表格容器 */
-.table-container {
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9em;
-  table-layout: fixed;
-}
-
-th {
-  text-align: left;
-  padding: 12px;
-  background: #252529;
-  color: #42b983;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  border-bottom: 1px solid #444;
-  white-space: nowrap;
-}
-
-.col-type {
-  width: 80px;
-}
-
-.col-remark {
-  width: 120px;
-}
-
-.col-content {
-  width: auto;
-}
-
-td {
-  padding: 10px;
-  border-bottom: 1px solid #2a2a2a;
-  color: #ccc;
-  vertical-align: top;
-  line-height: 1.5;
-}
-
-tr:hover td {
-  background: #222;
-  color: #fff;
-}
-
-.type-tag {
-  display: inline-block;
-  padding: 2px 6px;
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: #333;
-  border-radius: 4px;
-  font-size: 0.8em;
-  color: #aaa;
-}
-
-.content-cell {
-  white-space: pre-wrap;
-  word-break: break-word;
-  min-width: 300px;
-}
-
-.remark-cell {
-  white-space: nowrap;
-  color: #666;
-  font-size: 0.85em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 媒体流容器 */
-.media-container {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-.media-stream-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding-bottom: 40px;
-}
-
-.media-card {
-  background: #252525;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #333;
-}
-
-.video-layout {
-  display: flex;
-  height: 280px;
-}
-
-.video-player-wrapper {
-  flex: 2;
-  background: #000;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hls-player {
-  width: 100%;
-  height: 100%;
-}
-
-.format-badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: #42b983;
-  color: #000;
-  padding: 2px 5px;
-  font-size: 0.7em;
-  font-weight: bold;
   border-radius: 3px;
 }
-
-.video-meta-side {
-  flex: 1;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid #333;
-  max-width: 260px;
-}
-
-.cover-box {
-  height: 140px;
-  background: #000;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 10px;
-  cursor: pointer;
-}
-
-.cover-box img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.8;
-}
-
-.meta-info h4 {
-  margin: 5px 0;
-  color: #fff;
-  font-size: 0.9em;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.copy-btn {
-  margin-top: auto;
-  background: #333;
-  border: 1px solid #555;
-  padding: 6px;
-  color: #ccc;
-  cursor: pointer;
-  width: 100%;
-}
-
-.image-layout {
-  padding: 10px;
-  display: flex;
-  justify-content: center;
-  background: #222;
-}
-
-.preview-img {
-  max-width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-}
-
-.text-card-layout {
-  padding: 15px;
-  border-left: 3px solid #666;
-  background: #2a2a2a;
-}
-
-.text-header {
-  margin-bottom: 8px;
-}
-
-.text-content {
-  color: #ddd;
-  font-size: 0.9em;
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.badge {
-  font-size: 0.7em;
-  padding: 2px 5px;
-  border-radius: 3px;
-  color: #000;
-  font-weight: bold;
-}
-
-.badge.video {
-  background: #ff9800;
-}
-
-.badge.image {
-  background: #2196f3;
-}
-
-.badge.text {
-  background: #bbb;
-}
-
-.preview-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #555;
-}
-
-.empty-state .icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: 10px;
-}
-
-.sub-text {
-  font-size: 0.8em;
-  color: #444;
-  margin-top: 5px;
-}
-
-.mini-btn {
-  background: transparent;
-  border: 1px solid #555;
-  color: #888;
-  padding: 2px 8px;
-  font-size: 0.8em;
-  cursor: pointer;
-  margin-left: 10px;
-}
-
-.count-tag {
-  font-size: 0.8em;
-  color: #666;
-}
-
-.browser-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #aaa;
-  font-size: 12px;
-  cursor: pointer;
-  margin-right: 10px;
-}
-
-.browser-toggle input {
-  width: auto;
-  margin: 0;
-}
-
-.battle-btn {
-  background: linear-gradient(45deg, #ff5722, #ff9800);
-  color: white;
-  border: none;
-}
-.battlefield-container {
-  width: 100%;
-  height: 100%;
-  background: #000;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-.battle-header {
-  height: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-  color: #fff;
-  font-weight: bold;
-}
-.team-score.red { color: #ff4444; }
-.team-score.blue { color: #4488ff; }
-.vs-badge { font-style: italic; color: #aaa; }
-.battle-canvas {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-}
-.close-battle-btn {
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-}
-.winner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: #ffc107;
-  z-index: 10;
-}
-.winner-overlay h2 { font-size: 32px; margin-bottom: 10px; }
-.restart-btn {
-  margin-top: 20px;
-  padding: 10px 20px;
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #42b983;
-  border: none;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
 }
 </style>

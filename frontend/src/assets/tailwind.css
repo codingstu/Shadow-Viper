@@ -1,0 +1,33 @@
+/* ✅ 1. 引入 Tailwind v4 核心 */
+@import "tailwindcss";
+
+/* ✅ 2. 在这里直接定义你的赛博朋克主题 */
+@theme {
+  /* 定义颜色变量，Tailwind 会自动生成 bg-cyber-black 等类名 */
+  --color-cyber-black: #121212;
+  --color-cyber-gray: #1e1e1e;
+  --color-cyber-green: #42b983;
+  --color-cyber-blue: #00e5ff;
+  --color-cyber-red: #ff4444;
+
+  /* 定义字体 */
+  --font-mono: 'v-mono', 'Consolas', 'Monaco', 'monospace';
+}
+
+/* ✅ 3. 滚动条美化 (保持不变) */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1a1a1a;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #42b983;
+  }
+}

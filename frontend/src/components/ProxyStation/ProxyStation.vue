@@ -1,103 +1,155 @@
 <template>
-  <div class="proxy-station">
-    <div class="header-section">
-      <div class="title-group">
-        <h1>🌐 猎手 IP 池 <span class="version">v1.3 HTTPS版</span></h1>
-        <p>基于付费通道的全球免费代理采集与清洗系统</p>
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+    <n-global-style />
+    <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
+      
+      <div class="shrink-0 text-center mb-4 md:mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">
+          🌐 代理猎手池 Proxy Hunter Pool
+        </h1>
+        <p class="text-xs md:text-sm text-gray-500 mt-2">
+          <n-tag size="small" :bordered="false" class="bg-emerald-900/30 text-emerald-400 mr-2">v1.3 HTTPS版</n-tag>
+          基于付费通道的全球免费代理采集与清洗系统
+        </p>
       </div>
-      <div class="status-cards">
-        <div class="card">
-          <div class="card-label">存活数量</div>
-          <div class="card-value highlight">{{ stats.count }}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">引擎状态</div>
-          <div class="card-value" :class="stats.running ? 'busy' : 'idle'">
-            {{ stats.running ? '🔥 正在清洗中' : '💤 等待指令' }}
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <div class="workspace">
-      <div class="left-pane">
-        <div class="control-box">
-          <button
-            @click="triggerTask"
-            :disabled="stats.running"
-            class="main-btn"
-            :class="{ 'btn-loading': stats.running }"
-          >
-            <span v-if="!stats.running">🚀 启动 IP 狩猎</span>
-            <span v-else>⏳ 正在扫描全球节点...</span>
-          </button>
-
-          <div class="sub-controls">
-            <button @click="fetchData" class="sec-btn">🔄 刷新</button>
-            <button @click="cleanPool" class="danger-btn">🗑️ 清空</button>
-          </div>
-        </div>
-
-        <div class="log-container">
-          <div class="panel-title">运行终端</div>
-          <div class="log-window">
-            <div v-for="(log, i) in stats.logs" :key="i" class="log-item">
-              {{ log }}
+      <div class="shrink-0 mb-4 max-w-7xl mx-auto w-full">
+        <div class="bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+          
+          <div class="flex items-center gap-6 w-full md:w-auto justify-center md:justify-start">
+            <div class="flex flex-col items-center">
+              <span class="text-xs text-gray-500 mb-1">存活数量</span>
+              <span class="text-2xl font-bold text-emerald-400 font-mono">{{ stats.count }}</span>
             </div>
-            <div v-if="stats.logs.length === 0" class="log-empty">
+            <div class="h-8 w-px bg-gray-700"></div>
+            <div class="flex flex-col items-center">
+              <span class="text-xs text-gray-500 mb-1">引擎状态</span>
+              <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3" v-if="stats.running">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+                <span :class="stats.running ? 'text-amber-400' : 'text-gray-400'" class="font-bold text-sm">
+                  {{ stats.running ? '清洗中...' : '等待指令' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 w-full md:w-auto">
+            <n-button 
+              type="primary" 
+              class="flex-1 md:flex-none shadow-[0_0_15px_rgba(66,185,131,0.4)]"
+              @click="triggerTask"
+              :loading="stats.running"
+              :disabled="stats.running"
+            >
+              <template #icon>🚀</template>
+              {{ stats.running ? '扫描全球节点...' : '启动 IP 狩猎' }}
+            </n-button>
+            <n-button secondary type="info" @click="fetchData" class="flex-1 md:flex-none">
+              <template #icon>🔄</template> 刷新
+            </n-button>
+            <n-button secondary type="error" @click="cleanPool" class="flex-1 md:flex-none">
+              <template #icon>🗑️</template> 清空
+            </n-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        
+        <div class="w-full lg:w-1/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden order-2 lg:order-1 h-1/3 lg:h-auto">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <span class="font-bold text-gray-300">📟 运行终端 (Terminal)</span>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4 bg-black font-mono text-xs space-y-1 custom-scrollbar">
+            <div v-for="(log, i) in stats.logs" :key="i" class="border-b border-gray-800/50 pb-1 mb-1 text-gray-400 last:text-emerald-400 last:font-bold">
+              <span class="text-gray-600 mr-2">></span>{{ log }}
+            </div>
+            <div v-if="stats.logs.length === 0" class="text-gray-600 italic mt-4 text-center">
               > 系统就绪，等待启动...
             </div>
           </div>
         </div>
+
+        <div class="w-full lg:w-2/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden order-1 lg:order-2 flex-1">
+          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-gray-300">🏆 优质代理排行榜 (Top 100)</span>
+            </div>
+            <code class="text-[10px] text-gray-600 bg-[#121212] px-2 py-1 rounded">API: /api/proxy_pool/pop</code>
+          </div>
+
+          <div class="flex-1 overflow-auto custom-scrollbar bg-[#161616]">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-[#252525] sticky top-0 z-10 text-xs uppercase text-gray-500 font-bold">
+                <tr>
+                  <th class="p-3 w-40">IP 地址</th>
+                  <th class="p-3 w-24">端口</th>
+                  <th class="p-3 w-24">协议</th>
+                  <th class="p-3 w-32">响应速度</th>
+                  <th class="p-3">最后验证</th>
+                </tr>
+              </thead>
+              <tbody class="text-sm font-mono divide-y divide-gray-800">
+                <tr v-for="p in proxyList" :key="p.ip + p.port" class="hover:bg-white/5 transition-colors group">
+                  <td class="p-3 text-emerald-400 font-bold tracking-wide">{{ p.ip }}</td>
+                  <td class="p-3 text-gray-300">{{ p.port }}</td>
+                  <td class="p-3">
+                    <n-tag size="tiny" :bordered="false" class="bg-gray-800 text-gray-400 group-hover:bg-gray-700 transition-colors">
+                      {{ p.protocol.toUpperCase() }}
+                    </n-tag>
+                  </td>
+                  <td class="p-3">
+                    <div class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full" :class="{
+                        'bg-emerald-500 shadow-[0_0_5px_#10b981]': getSpeedLevel(p.speed) === 'fast',
+                        'bg-amber-500': getSpeedLevel(p.speed) === 'medium',
+                        'bg-red-500': getSpeedLevel(p.speed) === 'slow'
+                      }"></span>
+                      <span :class="{
+                        'text-emerald-400': getSpeedLevel(p.speed) === 'fast',
+                        'text-amber-400': getSpeedLevel(p.speed) === 'medium',
+                        'text-red-400': getSpeedLevel(p.speed) === 'slow'
+                      }">{{ p.speed }} ms</span>
+                    </div>
+                  </td>
+                  <td class="p-3 text-gray-500 text-xs">{{ formatTime(p.last_check) }}</td>
+                </tr>
+                
+                <tr v-if="proxyList.length === 0">
+                  <td colspan="5" class="p-10 text-center text-gray-600">
+                    <div class="text-5xl mb-4 opacity-20">🕸️</div>
+                    <p>暂无有效代理</p>
+                    <p class="text-xs mt-2">请点击左上方按钮开始抓取</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div class="right-pane">
-        <div class="panel-title">
-          <span>🏆 优质代理排行榜 (Top 100)</span>
-          <span class="api-hint">API: /api/proxy_pool/pop</span>
-        </div>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th width="140">IP 地址</th>
-                <th width="80">端口</th>
-                <th width="80">协议</th>
-                <th width="100">响应速度</th>
-                <th>最后验证</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="p in proxyList" :key="p.ip + p.port">
-                <td class="font-mono ip-txt">{{ p.ip }}</td>
-                <td class="font-mono">{{ p.port }}</td>
-                <td><span class="tag-proto">{{ p.protocol.toUpperCase() }}</span></td>
-                <td>
-                  <div class="speed-indicator" :class="getSpeedLevel(p.speed)">
-                    <div class="dot"></div>
-                    {{ p.speed }} ms
-                  </div>
-                </td>
-                <td class="time-txt">{{ formatTime(p.last_check) }}</td>
-              </tr>
-              <tr v-if="proxyList.length === 0">
-                <td colspan="5" class="empty-state">
-                  <div class="empty-icon">🕸️</div>
-                  <div>暂无有效代理</div>
-                  <div class="sub-text">请点击左侧按钮开始抓取</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
-  </div>
+  </n-config-provider>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+// 🔥 引入 Naive UI
+import { NConfigProvider, NGlobalStyle, NButton, NTag, darkTheme } from 'naive-ui';
+
+// 🔥 主题配置 (保持统一)
+const themeOverrides = {
+  common: {
+    primaryColor: '#42b983',
+    primaryColorHover: '#5cd29d',
+    primaryColorPressed: '#2a9163',
+  },
+};
+
+// --- 以下业务逻辑保持 100% 原样 ---
 
 const stats = ref({ count: 0, running: false, logs: [] });
 const proxyList = ref([]);
@@ -115,10 +167,10 @@ const formatTime = (timeStr) => {
 
 const fetchData = async () => {
   try {
-    const resStats = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/stats`); // 🔥 修改
+    const resStats = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/stats`); 
     stats.value = await resStats.json();
 
-    const resList = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/list`); // 🔥 修改
+    const resList = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/list`); 
     proxyList.value = await resList.json();
   } catch (e) {
     console.error("API Error", e);
@@ -128,7 +180,7 @@ const fetchData = async () => {
 const triggerTask = async () => {
   if (stats.value.running) return;
   try {
-    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/trigger`, { method: 'POST' }); // 🔥 修改
+    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/trigger`, { method: 'POST' }); 
     fetchData();
   } catch (e) { alert("连接后端失败"); }
 };
@@ -136,7 +188,7 @@ const triggerTask = async () => {
 const cleanPool = async () => {
   if (!confirm("确定要清空所有代理吗？")) return;
   try {
-    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/clean`, { method: 'DELETE' }); // 🔥 修改
+    await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/proxy_pool/clean`, { method: 'DELETE' }); 
     fetchData();
   } catch (e) { alert("清空失败"); }
 };
@@ -153,120 +205,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.proxy-station {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 40px);
-  color: #eee;
-  gap: 20px;
+/* 滚动条美化 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-.header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
 }
-.title-group h1 { margin: 0; font-size: 24px; color: #42b983; display: flex; align-items: center; gap: 10px; }
-.version { font-size: 12px; background: rgba(66, 185, 131, 0.2); padding: 2px 6px; border-radius: 4px; }
-.title-group p { margin: 5px 0 0; color: #888; font-size: 13px; }
-
-.status-cards { display: flex; gap: 15px; }
-.card {
-  background: #1e1e1e;
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: 1px solid #333;
-  text-align: center;
-  min-width: 100px;
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
 }
-.card-label { font-size: 12px; color: #666; margin-bottom: 5px; }
-.card-value { font-size: 20px; font-weight: bold; font-family: 'Consolas', monospace; }
-.highlight { color: #42b983; }
-.busy { color: #ff9800; animation: pulse 1.5s infinite; }
-.idle { color: #666; }
-
-.workspace {
-  display: flex;
-  flex: 1;
-  gap: 20px;
-  min-height: 0;
-}
-
-.left-pane { flex: 1; display: flex; flex-direction: column; gap: 15px; min-width: 300px; max-width: 400px; }
-.right-pane { flex: 2; display: flex; flex-direction: column; background: #1e1e1e; border-radius: 12px; border: 1px solid #333; overflow: hidden; }
-
-/* 按钮组 */
-.control-box { display: flex; flex-direction: column; gap: 10px; }
-.sub-controls { display: flex; gap: 10px; }
-
-button {
-  border: none; border-radius: 6px; padding: 12px; cursor: pointer;
-  font-weight: bold; transition: all 0.2s; color: white;
-}
-.main-btn { width: 100%; background: linear-gradient(135deg, #42b983 0%, #35495e 100%); box-shadow: 0 4px 15px rgba(66, 185, 131, 0.3); }
-.main-btn:hover { transform: translateY(-2px); }
-.main-btn:disabled { opacity: 0.7; cursor: wait; }
-
-.sec-btn { flex: 1; background: #2c3e50; border: 1px solid #3e5871; }
-.sec-btn:hover { background: #34495e; }
-
-.danger-btn { flex: 1; background: #c62828; border: 1px solid #b71c1c; }
-.danger-btn:hover { background: #d32f2f; }
-
-.log-container {
-  flex: 1;
-  background: #000;
-  border-radius: 8px;
-  border: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.panel-title {
-  padding: 10px 15px; background: #252525; border-bottom: 1px solid #333;
-  font-size: 13px; font-weight: bold; color: #ccc;
-  display: flex; justify-content: space-between;
-}
-.log-window {
-  flex: 1;
-  overflow-y: auto;
-  padding: 15px;
-  font-family: 'Consolas', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.log-item { border-bottom: 1px solid #111; padding-bottom: 2px; margin-bottom: 2px; color: #aaa; }
-.log-item:first-child { color: #fff; font-weight: bold; }
-.log-empty { color: #444; font-style: italic; }
-
-.api-hint { font-size: 12px; color: #555; font-weight: normal; font-family: monospace; }
-.table-container { flex: 1; overflow-y: auto; }
-table { width: 100%; border-collapse: collapse; }
-thead { position: sticky; top: 0; background: #252525; z-index: 10; }
-th { text-align: left; padding: 12px 15px; color: #888; font-size: 12px; font-weight: 600; }
-td { padding: 10px 15px; border-bottom: 1px solid #2a2a2a; color: #ddd; font-size: 13px; }
-tr:hover { background: rgba(255,255,255,0.02); }
-
-.font-mono { font-family: 'Consolas', monospace; }
-.ip-txt { color: #81c784; font-weight: bold; }
-.tag-proto { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #aaa; }
-.time-txt { color: #666; font-size: 12px; }
-
-.speed-indicator { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 12px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.fast { color: #4caf50; } .fast .dot { background: #4caf50; box-shadow: 0 0 5px #4caf50; }
-.medium { color: #ff9800; } .medium .dot { background: #ff9800; }
-.slow { color: #f44336; } .slow .dot { background: #f44336; }
-
-.empty-state { text-align: center; padding: 60px 0; color: #555; }
-.empty-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.3; }
-.sub-text { font-size: 12px; margin-top: 5px; }
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #42b983;
 }
 </style>
