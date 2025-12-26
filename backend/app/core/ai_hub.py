@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 import httpx
 from pathlib import Path
+import re  # 引入正则，用于物理读取
 
 # 延迟导入，避免循环依赖
 pool_manager = None
@@ -15,20 +16,19 @@ def set_pool_manager(manager):
     pool_manager = manager
 
 
-# 2. 强制指定 .env 的绝对路径
-# 加上 override=True，确保如果有旧的环境变量，会被 .env 文件里的覆盖
+# 1. 尝试标准加载 (不强制覆盖，避免把系统里的好值覆盖成空的)
 try:
     env_path = Path("/home/azureuser/spiderflow/backend/.env")
-    load_dotenv(dotenv_path=env_path, override=True)
+    load_dotenv(dotenv_path=env_path)
 except Exception:
-    pass  # 忽略路径错误，防止报错崩溃
+    pass
 
 # ==================== 🤖 硅基流动 (DeepSeek 官方加速版) ====================
-# 注意：这里的 api_key 只是一个默认值，我们在下面函数里会动态重新获取
 AI_PROVIDERS = {
     "silicon": {
         "base_url": os.getenv("SILICON_BASE_URL", "https://api.siliconflow.cn/v1"),
-        "api_key": os.getenv("SILICON_API_KEY", ""),
+        # 注意：这里先给个空值，全靠下面动态获取
+        "api_key": "",
     }
 }
 
@@ -37,27 +37,48 @@ def get_provider_config(model_name: str):
     return AI_PROVIDERS["silicon"], model_name.replace("silicon/", "")
 
 
-# --- 🛠 辅助函数：动态获取 Key (修复的核心) ---
-def _get_dynamic_api_key(default_key):
+# --- 🛠 核心修复：物理读取 .env 文件 ---
+def _force_read_env_file(key_name):
     """
-    优先从系统环境变量获取最新的 Key。
-    如果系统里没有，再使用配置里的默认 Key。
+    当 os.getenv 失效时，直接打开文件去读。
+    这是最底层的读取方式，只要文件里有字，就能读出来。
     """
-    # 1. 尝试直接从系统拿 (最稳)
-    env_key = os.getenv("SILICON_API_KEY")
-    if env_key:
-        return env_key
-
-    # 2. 如果系统拿不到，尝试强制重载一次 .env (最后挣扎)
     try:
-        load_dotenv(dotenv_path=Path("/home/azureuser/spiderflow/backend/.env"), override=True)
-        env_key = os.getenv("SILICON_API_KEY")
-        if env_key: return env_key
-    except:
-        pass
+        env_path = Path("/home/azureuser/spiderflow/backend/.env")
+        if not env_path.exists():
+            return None
 
-    # 3. 还是没有，返回默认值
-    return default_key
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # 查找以 key_name 开头的行，并且忽略注释
+                if line.startswith(f"{key_name}=") and not line.startswith("#"):
+                    # 获取等号后面的部分，并去除引号和空格
+                    value = line.split("=", 1)[1].strip()
+                    return value.strip("'").strip('"')
+    except Exception as e:
+        print(f"物理读取 .env 失败: {e}")
+    return None
+
+
+def _get_dynamic_api_key():
+    """
+    三级火箭获取 Key
+    """
+    # 1. 第一级：查系统环境变量 (最高优先级，比如命令行注入的)
+    key = os.getenv("SILICON_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+    if key and len(key) > 5:
+        return key
+
+    # 2. 第二级：物理读取 .env 文件 (专治 load_dotenv 不生效)
+    key = _force_read_env_file("SILICON_API_KEY")
+    if key and len(key) > 5:
+        return key
+
+    # 3. 第三级：硬编码兜底 (最后一道防线，防止报错 b'Bearer')
+    # 这里填入你之前提供的 Key，确保万无一失
+    fallback_key = "sk-pbnkxfexbhsaxwbfrupdjpokwzkxsiwuqeysarxnnkuesdfn"
+    return fallback_key
 
 
 # --- 🚀 核心：异步请求 (非阻塞) ---
@@ -78,20 +99,16 @@ async def _execute_request_async(client, url, headers, payload, timeout):
         return None, str(e)
 
 
-# --- 🚀 核心：异步流式生成 (非阻塞，支持打字机效果) ---
+# --- 🚀 核心：异步流式生成 ---
 async def call_ai_stream_async(system_prompt: str, user_text: str, model: str = "deepseek-ai/DeepSeek-V3",
                                temperature: float = 0.7):
-    """
-    全异步流式调用，不会阻塞服务器主线程
-    """
     config = AI_PROVIDERS["silicon"]
 
-    # 🔥🔥🔥 修复点：使用动态获取，而不是静态 config["api_key"] 🔥🔥🔥
-    api_key = _get_dynamic_api_key(config["api_key"])
+    # 🔥 动态获取 Key
+    api_key = _get_dynamic_api_key()
 
-    # 如果 Key 还是空的，打印个日志方便排查，防止报错 b'Bearer '
     if not api_key:
-        yield "Stream Error: SILICON_API_KEY is missing in .env file."
+        yield "Stream Error: API Key not found in env or file."
         return
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -130,16 +147,14 @@ async def call_ai_stream_async(system_prompt: str, user_text: str, model: str = 
         yield f"Stream Error: {str(e)}"
 
 
-# --- 🚀 核心：异步普通调用 (非流式) ---
+# --- 🚀 核心：异步普通调用 ---
 async def call_ai_async(system_prompt: str, user_text: str, model: str = "deepseek-ai/DeepSeek-V3",
                         temperature: float = 0.7):
     config = AI_PROVIDERS["silicon"]
-
-    # 🔥🔥🔥 修复点：同样应用动态获取 🔥🔥🔥
-    api_key = _get_dynamic_api_key(config["api_key"])
+    api_key = _get_dynamic_api_key()
 
     if not api_key:
-        raise Exception("SILICON_API_KEY not found")
+        raise Exception("API Key Missing")
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
@@ -155,7 +170,7 @@ async def call_ai_async(system_prompt: str, user_text: str, model: str = "deepse
         return content
 
 
-# ==================== 👇 保留旧版同步代码 (兼容旧模块) ====================
+# ==================== 👇 兼容旧代码 ====================
 def _execute_request(session, url, headers, payload, proxies, timeout):
     try:
         if not url.endswith("/chat/completions"): url = f"{url.rstrip('/')}/chat/completions"
@@ -172,15 +187,12 @@ def _execute_request(session, url, headers, payload, proxies, timeout):
 
 def call_ai(system_prompt: str, user_text: str, model: str = "deepseek-ai/DeepSeek-V3", temperature: float = 0.7,
             return_model_name: bool = False):
-    # 兼容旧代码的同步调用
     chain = []
     if pool_manager: chain = pool_manager.get_standard_chain()
     chain.append((None, "Direct", 60))
 
     config = AI_PROVIDERS["silicon"]
-
-    # 🔥🔥🔥 修复点：同步方法也要改 🔥🔥🔥
-    api_key = _get_dynamic_api_key(config["api_key"])
+    api_key = _get_dynamic_api_key()
 
     real_model = model
     if "gpt" in model or "smart" in model: real_model = "deepseek-ai/DeepSeek-V3"
