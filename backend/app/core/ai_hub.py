@@ -2,10 +2,8 @@
 import json
 import os
 import requests
-from dotenv import load_dotenv
 import httpx
 from pathlib import Path
-import re  # 引入正则，用于物理读取
 
 # 延迟导入，避免循环依赖
 pool_manager = None
@@ -16,19 +14,54 @@ def set_pool_manager(manager):
     pool_manager = manager
 
 
-# 1. 尝试标准加载 (不强制覆盖，避免把系统里的好值覆盖成空的)
-try:
-    env_path = Path("/home/azureuser/spiderflow/backend/.env")
-    load_dotenv(dotenv_path=env_path)
-except Exception:
-    pass
+# ==================== 🛠️ 核心修复：手写物理读取器 ====================
+def _manual_read_env_key(target_key: str):
+    """
+    不依赖 load_dotenv，不依赖系统变量，直接暴力读取文件。
+    使用相对路径，自动定位 .env (backend/.env)
+    """
+    try:
+        # 1. 获取 ai_hub.py 所在的目录
+        current_dir = Path(__file__).resolve().parent
+        # 2. 往上找 2 层 (app -> backend)，找到 .env 所在目录
+        # current: backend/app/core
+        # parent:  backend/app
+        # parent.parent: backend
+        project_root = current_dir.parent.parent
+        env_file = project_root / ".env"
 
-# ==================== 🤖 硅基流动 (DeepSeek 官方加速版) ====================
+        print(f"[DEBUG] 正在尝试从文件读取 Key: {env_file}")
+
+        if not env_file.exists():
+            print(f"[ERROR] .env 文件未找到! 路径: {env_file}")
+            return None
+
+        # 3. 逐行扫描
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # 忽略注释和空行
+                if not line or line.startswith("#"):
+                    continue
+                # 查找目标 Key
+                if line.startswith(f"{target_key}="):
+                    # 分割并清理空格、引号
+                    key_value = line.split("=", 1)[1].strip().strip("'").strip('"')
+                    if key_value:
+                        print(f"[DEBUG] 成功从文件读取到 {target_key} (长度: {len(key_value)})")
+                        return key_value
+    except Exception as e:
+        print(f"[ERROR] 读取 .env 发生异常: {e}")
+
+    return None
+
+
+# ==================== 🤖 配置定义 ====================
 AI_PROVIDERS = {
     "silicon": {
-        "base_url": os.getenv("SILICON_BASE_URL", "https://api.siliconflow.cn/v1"),
-        # 注意：这里先给个空值，全靠下面动态获取
-        "api_key": "",
+        # Base URL 也可以尝试读取，这里给默认值
+        "base_url": "https://api.siliconflow.cn/v1",
+        "api_key": "",  # 占位符，下面动态获取
     }
 }
 
@@ -37,48 +70,28 @@ def get_provider_config(model_name: str):
     return AI_PROVIDERS["silicon"], model_name.replace("silicon/", "")
 
 
-# --- 🛠 核心修复：物理读取 .env 文件 ---
-def _force_read_env_file(key_name):
-    """
-    当 os.getenv 失效时，直接打开文件去读。
-    这是最底层的读取方式，只要文件里有字，就能读出来。
-    """
-    try:
-        env_path = Path("/home/azureuser/spiderflow/backend/.env")
-        if not env_path.exists():
-            return None
-
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                # 查找以 key_name 开头的行，并且忽略注释
-                if line.startswith(f"{key_name}=") and not line.startswith("#"):
-                    # 获取等号后面的部分，并去除引号和空格
-                    value = line.split("=", 1)[1].strip()
-                    return value.strip("'").strip('"')
-    except Exception as e:
-        print(f"物理读取 .env 失败: {e}")
-    return None
-
-
 def _get_dynamic_api_key():
     """
-    三级火箭获取 Key
+    三级火箭获取 Key：
+    1. 系统环境变量 (最高级)
+    2. 手动读取 .env 文件 (保底级)
+    3. 硬编码兜底 (最后防线)
     """
-    # 1. 第一级：查系统环境变量 (最高优先级，比如命令行注入的)
-    key = os.getenv("SILICON_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-    if key and len(key) > 5:
+    # 1. 尝试系统变量
+    key = os.getenv("SILICON_API_KEY")
+    if key and len(key) > 10:
         return key
 
-    # 2. 第二级：物理读取 .env 文件 (专治 load_dotenv 不生效)
-    key = _force_read_env_file("SILICON_API_KEY")
-    if key and len(key) > 5:
+    # 2. 尝试手动读取文件
+    key = _manual_read_env_key("SILICON_API_KEY")
+    if key and len(key) > 10:
         return key
 
-    # 3. 第三级：硬编码兜底 (最后一道防线，防止报错 b'Bearer')
-    # 这里填入你之前提供的 Key，确保万无一失
-    fallback_key = "sk-pbnkxfexbhsaxwbfrupdjpokwzkxsiwuqeysarxnnkuesdfn"
-    return fallback_key
+    # 3. 如果实在读不到，为了防止服务崩溃，这里保留一个硬编码的“安全网”
+    # 如果你觉得不安全，可以删掉这行，但这是解决“怎么都读不到”的最后办法
+    # 你的 Key: sk-pbnkxfexbhsaxwbfrupdjpokwzkxsiwuqeysarxnnkuesdfn
+    print("[WARNING] 使用硬编码 Key 作为最后兜底")
+    return "sk-pbnkxfexbhsaxwbfrupdjpokwzkxsiwuqeysarxnnkuesdfn"
 
 
 # --- 🚀 核心：异步请求 (非阻塞) ---
@@ -102,13 +115,16 @@ async def _execute_request_async(client, url, headers, payload, timeout):
 # --- 🚀 核心：异步流式生成 ---
 async def call_ai_stream_async(system_prompt: str, user_text: str, model: str = "deepseek-ai/DeepSeek-V3",
                                temperature: float = 0.7):
+    """
+    全异步流式调用
+    """
     config = AI_PROVIDERS["silicon"]
 
     # 🔥 动态获取 Key
     api_key = _get_dynamic_api_key()
 
     if not api_key:
-        yield "Stream Error: API Key not found in env or file."
+        yield "Stream Error: Critical - API Key not found in env or file."
         return
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
