@@ -16,7 +16,7 @@ def set_pool_manager(manager):
 # 2. 强制指定 .env 的绝对路径
 # 假设你的 .env 在 /home/azureuser/spiderflow/backend/.env
 env_path = Path("/home/azureuser/spiderflow/backend/.env")
-load_dotenv()
+load_dotenv(dotenv_path=env_path)
 
 # ==================== 🤖 硅基流动 (DeepSeek 官方加速版) ====================
 AI_PROVIDERS = {
