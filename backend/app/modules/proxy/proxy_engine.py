@@ -7,7 +7,8 @@ import json
 import os
 import random
 import logging
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request, Response
+from fastapi.responses import StreamingResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ load_dotenv()
 # ==================== 配置区域 ====================
 PROXY_STORE_FILE = "valid_proxies.json"
 UPSTREAM_PROXY = os.getenv("UPSTREAM_PROXY")
+GLOBAL_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # 验证目标
 TEST_URL_GLOBAL = "https://www.google.com/generate_204"
@@ -66,17 +68,14 @@ class ProxyManager:
             self.scheduler.add_job(self.run_cycle, 'interval', minutes=5, id='proxy_refresh')
             self.scheduler.start()
             self.log("✅ [System] 代理池自动巡检已启动 (5min/cycle)")
-            # 启动时立即运行一次
             asyncio.create_task(self.run_cycle())
 
     def get_standard_chain(self):
         chain = []
-        
-        # 🔥 恢复：从 NodeHunter 获取节点
         if self.node_provider:
             try:
                 nodes = self.node_provider()
-                for node in nodes[:5]: # 取前5个
+                for node in nodes[:5]:
                     chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ NodeHunter ({node['name'][:10]})", 10))
             except Exception as e:
                 self.log(f"⚠️ Failed to get nodes from provider: {e}")
@@ -119,10 +118,8 @@ class ProxyManager:
 
     def save_to_file(self):
         try:
-            # 去重并排序
             unique_proxies = {f"{p.ip}:{p.port}": p for p in self.proxies}.values()
             self.proxies = sorted(list(unique_proxies), key=lambda x: x.speed)
-            
             with open(PROXY_STORE_FILE, "w") as f:
                 json.dump([p.dict() for p in self.proxies], f)
         except:
@@ -191,9 +188,8 @@ class ProxyManager:
             self.log("🚀 ==== 启动 IP 净化 (5min 轮换) ====")
             candidates = await self.fetch_public_sources()
             
-            # 保留现有存活的代理
             for p in self.proxies:
-                if p.score > 0: # 只保留分数高的
+                if p.score > 0:
                     proto = "http" if p.protocol == "https" else p.protocol
                     candidates.append({"ip": p.ip, "port": p.port, "protocol": proto})
 
@@ -208,16 +204,13 @@ class ProxyManager:
 
             async with aiohttp.ClientSession() as session:
                 for i in range(0, total, batch_size):
-                    # if not self.is_running: break # 移除此检查，确保任务完成
                     batch = candidate_list[i:i + batch_size]
                     tasks = [self.validate_one(p, session) for p in batch]
                     results = await asyncio.gather(*tasks)
                     new_valid = [r for r in results if r]
                     valid_list.extend(new_valid)
                     
-                    # 实时更新，避免等待太久
                     if new_valid:
-                        # 简单的合并去重
                         current_map = {f"{p.ip}:{p.port}": p for p in self.proxies}
                         for p in new_valid:
                             current_map[f"{p.ip}:{p.port}"] = p
@@ -238,6 +231,37 @@ class ProxyManager:
 
 
 manager = ProxyManager()
+
+# 🔥 核心修复：添加代理路由
+@router.get("/proxy")
+async def proxy_stream(request: Request):
+    url = request.query_params.get("url")
+    referer = request.query_params.get("referer")
+    if not url:
+        return Response("URL parameter is required.", status_code=400)
+
+    headers = {
+        "User-Agent": GLOBAL_USER_AGENT,
+        "Referer": referer if referer else url,
+    }
+
+    async def stream_content():
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, headers=headers, timeout=30) as resp:
+                    if resp.status != 200:
+                        yield f"Error: Received status {resp.status}".encode()
+                        return
+                    
+                    while True:
+                        chunk = await resp.content.read(1024)
+                        if not chunk:
+                            break
+                        yield chunk
+            except Exception as e:
+                yield f"Error fetching content: {e}".encode()
+
+    return StreamingResponse(stream_content(), media_type="application/octet-stream")
 
 
 @router.get("/stats")

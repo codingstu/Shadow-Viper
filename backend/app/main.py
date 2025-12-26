@@ -48,21 +48,19 @@ async def startup_event():
     else:
         print("⚠️ [System] Shadow Matrix 未加载")
         
-    # 🔥🔥🔥 核心修复：在启动时强制连接 NodeHunter 和 ProxyManager 🔥🔥🔥
+    # 🔥 核心修复：在启动时强制连接 NodeHunter 和 ProxyManager 🔥🔥🔥
     if pool_manager and node_hunter:
         print("🔗 [System] 正在连接 NodeHunter -> ProxyManager...")
+        # 🔥 恢复：传递所有节点，让爬虫自己去过滤
         pool_manager.set_node_provider(node_hunter.get_alive_nodes)
         
         # 验证连接是否成功
         if pool_manager.node_provider:
-             print("✅ [System] 连接成功！ProxyManager 现在可以获取猎手节点。")
+             print("✅ [System] 连接成功！ProxyManager 现在可以获取所有猎手节点。")
         else:
              print("❌ [System] 连接失败！NodeProvider 仍为 None。")
 
-# @app.get("/")
-# def read_root():
-#     return {"message": "SpiderFlow API", "status": "running"}
-# 伪装根目录：假装这是一个普通的静态页面，或者直接空白
+# 伪装根目录
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     return """
@@ -85,7 +83,7 @@ app.include_router(node_router)
 app.include_router(crawler_router)
 app.include_router(alchemy_router)
 app.include_router(cyber_router)
-app.include_router(eagle_router) # 🔥 修复
+app.include_router(eagle_router)
 app.include_router(refinery_router)
 app.include_router(generator_router)
 app.include_router(game_router)
