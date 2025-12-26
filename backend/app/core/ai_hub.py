@@ -4,6 +4,7 @@ import os
 import requests
 from dotenv import load_dotenv
 import httpx
+from pathlib import Path
 
 # 延迟导入，避免循环依赖
 pool_manager = None
@@ -12,6 +13,9 @@ def set_pool_manager(manager):
     global pool_manager
     pool_manager = manager
 
+# 2. 强制指定 .env 的绝对路径
+# 假设你的 .env 在 /home/azureuser/spiderflow/backend/.env
+env_path = Path("/home/azureuser/spiderflow/backend/.env")
 load_dotenv()
 
 # ==================== 🤖 硅基流动 (DeepSeek 官方加速版) ====================

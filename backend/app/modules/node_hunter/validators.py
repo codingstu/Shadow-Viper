@@ -20,7 +20,8 @@ class NodeTestResult:
 
 TEST_TARGETS = {
     "google": {"url": "https://www.google.com/generate_204", "timeout": 3},
-    "juejin": {"url": "https://juejin.cn/robots.txt", "timeout": 5}
+    "juejin": {"url": "https://juejin.cn/robots.txt", "timeout": 5},
+    "baidu": {"url": "https://www.baidu.com", "timeout": 3}  # <--- 新增：百度测试
 }
 
 async def test_port_connectivity(node: Dict[str, Any]) -> Dict[str, Any]:
@@ -71,7 +72,25 @@ async def test_node_network(node: Dict[str, Any]) -> NodeTestResult:
     
     protocol = node.get('protocol', '').lower()
     is_complex_proto = protocol in ['vmess', 'vless', 'trojan', 'ssr']
-    
+
+    # === 新增逻辑开始 ===
+    # 如果是标记为 CN (回国) 的节点，只测百度，不测 Google
+    if node.get('country') == 'CN':
+        res.china_test = await test_http_proxy(node, "baidu")
+        if res.china_test:
+            res.total_score += 10  # 回国节点只要通了就给高分
+            # 如果需要，也可以顺便测一下 juejin
+            res.juejin_test = await test_http_proxy(node, "juejin")
+
+        # 强制修正：如果 TCP 通了但 HTTP 没通，且是复杂协议，依然给基础分
+        if is_complex_proto and res.total_score == 0:
+            res.total_score = 5
+
+        res.total_score = max(0, res.total_score)
+        return res
+    # === 新增逻辑结束 ===
+
+
     if is_complex_proto:
         # 对于复杂协议，TCP 通了就给分，但延迟必须低
         res.total_score = 5

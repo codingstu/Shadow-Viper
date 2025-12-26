@@ -16,6 +16,7 @@ from .modules.generator.generator_engine import router as generator_router
 from .modules.game.game_engine import router as game_router
 from .modules.shodan.shodan_engine import router as shodan_router
 from .core.ai_hub import set_pool_manager
+from fastapi.responses import HTMLResponse
 
 load_dotenv()
 
@@ -58,9 +59,26 @@ async def startup_event():
         else:
              print("❌ [System] 连接失败！NodeProvider 仍为 None。")
 
-@app.get("/")
-def read_root():
+# @app.get("/")
+# def read_root():
+#     return {"message": "SpiderFlow API", "status": "running"}
+# 伪装根目录：假装这是一个普通的静态页面，或者直接空白
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    return """
+    <html>
+        <head><title>Site Maintenance</title></head>
+        <body>
+            <h1>System Update</h1>
+            <p>The service is currently undergoing maintenance.</p>
+        </body>
+    </html>
+    """
+
+@app.get("/api/status")
+async def read_status():
     return {"message": "SpiderFlow API", "status": "running"}
+
 
 app.include_router(proxy_router)
 app.include_router(node_router)

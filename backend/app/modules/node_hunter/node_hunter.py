@@ -26,6 +26,8 @@ try:
 except ImportError:
     pool_manager = None
 
+CHINA_PROXY_SOURCE = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/countries/CN/data.txt"
+
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
 
@@ -142,6 +144,42 @@ class NodeHunter:
             all_nodes.extend(res)
         return list(set(all_nodes))
 
+    async def _fetch_china_nodes(self) -> List[Dict]:
+        """专门抓取 GitHub 上的回国节点"""
+        nodes = []
+        self.add_log(f"🇨🇳 正在抓取回国专用节点...", "INFO")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(CHINA_PROXY_SOURCE, timeout=10) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        lines = text.strip().split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            if ":" in line and not line.startswith("#"):
+                                try:
+                                    # data.txt 格式通常是 ip:port
+                                    parts = line.split(":")
+                                    ip = parts[0]
+                                    port = int(parts[1])
+
+                                    # 手动构造节点对象
+                                    nodes.append({
+                                        "id": f"cn_http_{ip}_{port}",
+                                        "name": f"🇨🇳 回国专线 | {ip}",  # 强制加上国旗
+                                        "protocol": "http",  # GitHub 免费列表多为 HTTP
+                                        "host": ip,
+                                        "port": port,
+                                        "country": "CN",  # 关键标记
+                                        "type": "back_to_china"
+                                    })
+                                except:
+                                    continue
+                        self.add_log(f"📥 抓取到 {len(nodes)} 个潜在回国节点", "SUCCESS")
+        except Exception as e:
+            self.add_log(f"⚠️ 回国节点抓取失败: {e}", "WARNING")
+        return nodes
+
     async def scan_cycle(self):
         if self.is_scanning: return
         self.is_scanning = True
@@ -154,6 +192,16 @@ class NodeHunter:
                 return
 
             parsed_nodes = [parse_node_url(url) for url in raw_nodes]
+
+            # 过滤掉解析失败的
+            valid_parsed_nodes = [n for n in parsed_nodes if n]
+
+            # === 新增逻辑：抓取回国节点 ===
+            cn_nodes = await self._fetch_china_nodes()
+
+            # === 合并列表 (回国节点放前面) ===
+            all_nodes = cn_nodes + valid_parsed_nodes
+
             unique_nodes = list({f"{n['host']}:{n['port']}": n for n in parsed_nodes if n}.values())
             self.add_log(f"🔍 解析成功 {len(unique_nodes)} 个唯一节点", "INFO")
 
