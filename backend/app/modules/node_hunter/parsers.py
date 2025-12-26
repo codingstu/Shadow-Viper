@@ -4,8 +4,9 @@ import json
 import re
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, parse_qs
+from urllib.parse import unquote
 
-COUNTRY_CODES = {"CN": "中国", "US": "美国", "JP": "日本", "SG": "新加坡", "TW": "台湾", "HK": "香港", "KR": "韩国",
+COUNTRY_CODES = {"CN": "🇨🇳 中国(回国)", "US": "美国", "JP": "日本", "SG": "新加坡", "TW": "台湾", "HK": "香港", "KR": "韩国",
                  "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "RU": "俄罗斯",
                  "IN": "印度", "BR": "巴西", "TR": "土耳其", "NL": "荷兰", "SE": "瑞典", "NO": "挪威", "FI": "芬兰",
                  "DK": "丹麦", "CH": "瑞士", "AT": "奥地利", "BE": "比利时"}
@@ -61,11 +62,21 @@ def parse_vless_link(url: str) -> Optional[Dict[str, Any]]:
         else:
             server, port = server_port, 443
         params = parse_qs(parsed.query)
-        name = parsed.fragment or f"VLESS-Node"
+
+        # ❌ 原代码: name = parsed.fragment or f"VLESS-Node"
+        # ✅ 修正后: 使用 unquote 解码
+        raw_name = parsed.fragment
+        name = unquote(raw_name) if raw_name else "VLESS-Node"
+
         country = "Unknown"
         for code, country_name in COUNTRY_CODES.items():
             if code in name.upper():
                 country = country_name
+                # ==================== 👇 新增逻辑 👇 ====================
+                # 如果发现名字里带 CN，但没带国旗，强制加在名字前面
+                if code == "CN" and "🇨🇳" not in name:
+                    name = f"🇨🇳 {name}"
+                # ==================== 👆 新增逻辑结束 👆 ====================
                 break
         return {"id": f"vless_{server}_{port}", "name": name, "protocol": "vless", "host": server, "port": port,
                 "uuid": uuid, "type": params.get('type', ['tcp'])[0], "security": params.get('security', ['none'])[0],
@@ -85,7 +96,11 @@ def parse_trojan_link(url: str) -> Optional[Dict[str, Any]]:
         else:
             server, port = server_port, 443
         params = parse_qs(parsed.query)
-        name = parsed.fragment or f"Trojan-Node"
+        # ❌ 原代码: name = parsed.fragment or f"Trojan-Node"
+        # ✅ 修正后:
+        raw_name = parsed.fragment
+        name = unquote(raw_name) if raw_name else "Trojan-Node"
+
         country = "Unknown"
         for code, country_name in COUNTRY_CODES.items():
             if code in name.upper():
@@ -110,7 +125,10 @@ def parse_ss_link(url: str) -> Optional[Dict[str, Any]]:
         match = re.match(r'([^:]+):([^@]+)@([^:]+):(\d+)', decoded)
         if not match: return None
         method, password, server, port = match.group(1), match.group(2), match.group(3), int(match.group(4))
-        name = urlparse(url).fragment or f"SS-Node"
+        # ✅ 修正后:
+        raw_name = urlparse(url).fragment
+        name = unquote(raw_name) if raw_name else "SS-Node"
+
         country = "Unknown"
         for code, country_name in COUNTRY_CODES.items():
             if code in name.upper():
@@ -132,7 +150,11 @@ def parse_standard_proxy_link(url: str) -> Optional[Dict[str, Any]]:
         port = parsed.port
         if not server or not port: return None
 
-        name = parsed.fragment or f"{parsed.scheme.upper()}-Node"
+        # ❌ 原代码: name = parsed.fragment or f"{parsed.scheme.upper()}-Node"
+        # ✅ 修正后:
+        raw_name = parsed.fragment
+        name = unquote(raw_name) if raw_name else f"{parsed.scheme.upper()}-Node"
+
         user = parsed.username
         password = parsed.password
 

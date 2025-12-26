@@ -76,9 +76,24 @@ async def test_node_network(node: Dict[str, Any]) -> NodeTestResult:
     # === 新增逻辑开始 ===
     # 如果是标记为 CN (回国) 的节点，只测百度，不测 Google
     if node.get('country') == 'CN':
+        # ⏱️ 增加计时器
+        start_time = time.time()
         res.china_test = await test_http_proxy(node, "baidu")
+        end_time = time.time()
         if res.china_test:
-            res.total_score += 10  # 回国节点只要通了就给高分
+            # 计算真实 HTTP 延迟 (毫秒)
+            http_latency = int((end_time - start_time) * 1000)
+            res.connection_time_ms = http_latency  # 记录下来
+
+            # 🏆 动态评分系统 (速度越快，分数越高，排序越靠前)
+            if http_latency < 800:
+                res.total_score += 30  # 极速
+            elif http_latency < 1500:
+                res.total_score += 20  # 良好
+            elif http_latency < 3000:
+                res.total_score += 10  # 一般
+            else:
+                res.total_score += 5  # 勉强能用
             # 如果需要，也可以顺便测一下 juejin
             res.juejin_test = await test_http_proxy(node, "juejin")
 

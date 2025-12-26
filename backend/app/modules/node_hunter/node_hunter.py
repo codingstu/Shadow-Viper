@@ -58,7 +58,11 @@ class NodeHunter:
 
     def start_scheduler(self):
         if not self.scheduler.running:
-            self.scheduler.add_job(self.scan_cycle, 'interval', minutes=10, id='node_scan_refresh')
+            # ==================== 👇 修改：注释掉旧的健康检查 👇 ====================
+            # 逻辑已移入 ChinaHunter.fetch_all 内部，随主循环自动执行，不再需要独立任务
+            # self.scheduler.add_job(self.china_hunter.check_sources_health, 'interval', minutes=5, id='source_health_check')
+            # ==================== 👆 修改结束 👆 ====================
+
             self.scheduler.start()
             self.add_log("✅ [System] 节点猎手自动巡航已启动 (10min/cycle)", "SUCCESS")
             asyncio.create_task(self.scan_cycle())
@@ -147,38 +151,66 @@ class NodeHunter:
     async def _fetch_china_nodes(self) -> List[Dict]:
         """专门抓取 GitHub 上的回国节点"""
         nodes = []
-        self.add_log(f"🇨🇳 正在抓取回国专用节点...", "INFO")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(CHINA_PROXY_SOURCE, timeout=10) as resp:
-                    if resp.status == 200:
-                        text = await resp.text()
-                        lines = text.strip().split('\n')
-                        for line in lines:
-                            line = line.strip()
-                            if ":" in line and not line.startswith("#"):
-                                try:
-                                    # data.txt 格式通常是 ip:port
-                                    parts = line.split(":")
-                                    ip = parts[0]
-                                    port = int(parts[1])
 
-                                    # 手动构造节点对象
-                                    nodes.append({
-                                        "id": f"cn_http_{ip}_{port}",
-                                        "name": f"🇨🇳 回国专线 | {ip}",  # 强制加上国旗
-                                        "protocol": "http",  # GitHub 免费列表多为 HTTP
-                                        "host": ip,
-                                        "port": port,
-                                        "country": "CN",  # 关键标记
-                                        "type": "back_to_china"
-                                    })
-                                except:
-                                    continue
-                        self.add_log(f"📥 抓取到 {len(nodes)} 个潜在回国节点", "SUCCESS")
+        # ==================== 👇 新增逻辑 (调用 china_hunter) 👇 ====================
+        try:
+            # 延迟导入，防止循环引用
+            from .china_hunter import ChinaHunter
+
+            # 实例化新猎手
+            hunter = ChinaHunter()
+            self.add_log(f"🇨🇳 [新版] 正在启动回国节点猎手 (源数量: {len(hunter.sources)})...", "INFO")
+
+            # 执行抓取
+            nodes = await hunter.fetch_all()
+
+            if nodes:
+                self.add_log(f"📥 [新版] 回国猎手捕获成功: {len(nodes)} 个节点", "SUCCESS")
+            else:
+                self.add_log(f"⚠️ [新版] 回国猎手本次未捕获到节点", "WARNING")
+
+        except ImportError:
+            self.add_log("❌ 未找到 china_hunter 模块，请检查文件是否存在", "ERROR")
         except Exception as e:
-            self.add_log(f"⚠️ 回国节点抓取失败: {e}", "WARNING")
+            self.add_log(f"⚠️ [新版] 回国节点抓取异常: {e}", "WARNING")
+        # ==================== 👆 新增逻辑结束 👆 ====================
+
+        # ==================== 👇 旧逻辑 (已注释保留) 👇 ====================
+        # self.add_log(f"🇨🇳 正在抓取回国专用节点...", "INFO")
+        # try:
+        #     async with aiohttp.ClientSession() as session:
+        #         async with session.get(CHINA_PROXY_SOURCE, timeout=10) as resp:
+        #             if resp.status == 200:
+        #                 text = await resp.text()
+        #                 lines = text.strip().split('\n')
+        #                 for line in lines:
+        #                     line = line.strip()
+        #                     if ":" in line and not line.startswith("#"):
+        #                         try:
+        #                             # data.txt 格式通常是 ip:port
+        #                             parts = line.split(":")
+        #                             ip = parts[0]
+        #                             port = int(parts[1])
+        #
+        #                             # 手动构造节点对象
+        #                             nodes.append({
+        #                                 "id": f"cn_http_{ip}_{port}",
+        #                                 "name": f"🇨🇳 回国专线 | {ip}",  # 强制加上国旗
+        #                                 "protocol": "http",  # GitHub 免费列表多为 HTTP
+        #                                 "host": ip,
+        #                                 "port": port,
+        #                                 "country": "CN",  # 关键标记
+        #                                 "type": "back_to_china"
+        #                             })
+        #                         except:
+        #                             continue
+        #                 self.add_log(f"📥 抓取到 {len(nodes)} 个潜在回国节点", "SUCCESS")
+        # except Exception as e:
+        #     self.add_log(f"⚠️ 回国节点抓取失败: {e}", "WARNING")
+        # ==================== 👆 旧逻辑结束 👆 ====================
+
         return nodes
+
 
     async def scan_cycle(self):
         if self.is_scanning: return
@@ -221,7 +253,21 @@ class NodeHunter:
         for i, node in enumerate(nodes_to_test):
             if results[i].total_score > 0:
                 node.update(alive=True, delay=results[i].tcp_ping_ms, test_results=results[i].__dict__)
-                node['speed'] = round(random.uniform(1.0, 30.0) / (node['delay'] / 100), 2) if node['delay'] > 0 else 0
+                # ==================== 👇 修改开始：更科学的速度计算 👇 ====================
+                # 优先使用真实的 HTTP 连接耗时
+                real_latency = results[i].connection_time_ms
+
+                if real_latency > 0:
+                    # 延迟越低，模拟的带宽速度越大
+                    # 比如 500ms 延迟 -> 约 10 MB/s
+                    # 2000ms 延迟 -> 约 2.5 MB/s
+                    node['speed'] = round(5000.0 / real_latency, 2)
+                elif node['delay'] > 0:
+                    # 降级方案：用 TCP Ping 估算
+                    node['speed'] = round(random.uniform(1.0, 30.0) / (node['delay'] / 100), 2)
+                else:
+                    node['speed'] = 0.5  # 保底
+                # ==================== 👆 修改结束 👆 ====================
                 valid_nodes.append(node)
 
         self.nodes = sorted(valid_nodes, key=lambda x: x.get('test_results', {}).get('total_score', 0), reverse=True)
