@@ -70,3 +70,4 @@ urllib3==2.6.2
 uvicorn==0.38.0
 xlsxwriter==3.2.9
 yarl==1.22.0
+psutil

@@ -17,6 +17,7 @@ from .modules.game.game_engine import router as game_router
 from .modules.shodan.shodan_engine import router as shodan_router
 from .core.ai_hub import set_pool_manager
 from fastapi.responses import HTMLResponse
+from .modules.system.monitor import router as system_router
 
 load_dotenv()
 
@@ -33,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     # 1. 启动代理池管理器
@@ -47,18 +49,19 @@ async def startup_event():
         node_hunter.start_scheduler()
     else:
         print("⚠️ [System] Shadow Matrix 未加载")
-        
+
     # 🔥 核心修复：在启动时强制连接 NodeHunter 和 ProxyManager 🔥🔥🔥
     if pool_manager and node_hunter:
         print("🔗 [System] 正在连接 NodeHunter -> ProxyManager...")
         # 🔥 恢复：传递所有节点，让爬虫自己去过滤
         pool_manager.set_node_provider(node_hunter.get_alive_nodes)
-        
+
         # 验证连接是否成功
         if pool_manager.node_provider:
-             print("✅ [System] 连接成功！ProxyManager 现在可以获取所有猎手节点。")
+            print("✅ [System] 连接成功！ProxyManager 现在可以获取所有猎手节点。")
         else:
-             print("❌ [System] 连接失败！NodeProvider 仍为 None。")
+            print("❌ [System] 连接失败！NodeProvider 仍为 None。")
+
 
 # 伪装根目录
 @app.get("/", response_class=HTMLResponse)
@@ -72,6 +75,7 @@ async def read_root():
         </body>
     </html>
     """
+
 
 @app.get("/api/status")
 async def read_status():
@@ -88,6 +92,7 @@ app.include_router(refinery_router)
 app.include_router(generator_router)
 app.include_router(game_router)
 app.include_router(shodan_router)
+app.include_router(system_router, prefix="/api")
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
