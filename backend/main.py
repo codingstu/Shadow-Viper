@@ -12,4 +12,4 @@ if APP_ROOT not in sys.path:
 if __name__ == "__main__":
     # The 'reload_dirs' argument tells the reloader to watch our project directory.
     # The string "app.main:app" tells uvicorn where to find the FastAPI app instance.
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True, reload_dirs=[os.path.join(APP_ROOT, 'app')])
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True, reload_dirs=[os.path.join(APP_ROOT, 'app')])
