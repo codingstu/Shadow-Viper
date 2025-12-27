@@ -1,5 +1,6 @@
 <template>
   <div class="app-layout">
+    <GlobalNetworkStatus />
     <nav class="sidebar">
       <div class="logo">🕷️</div>
 
@@ -53,6 +54,7 @@
 
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue';
+import GlobalNetworkStatus from './components/GlobalNetworkStatus.vue';
 
 const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
 const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
