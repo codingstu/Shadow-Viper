@@ -472,3 +472,50 @@ async def get_clash_config(request: Request):
     if config_str:
         return {"filename": f"clash_config_{int(time.time())}.yaml", "content": config_str}
     return {"error": "Error"}
+
+
+# ==========================================
+# 🔥 新增：供独立网站抓取的专用接口
+# ==========================================
+
+class ExportNode(BaseModel):
+    protocol: str
+    host: str
+    port: int
+    country: str
+    speed: float
+    name: str
+    link: Optional[str] = None
+
+
+@router.get("/export_raw", response_model=List[ExportNode])
+async def export_raw_nodes(token: str = Query(..., description="安全验证Token")):
+    """
+    导出原始节点数据，供 GitHub Actions 定时抓取
+    """
+    # 安全验证：只有 Token 对上了才给数据
+    # 注意：如果你改了这里的 "shadow-viper-secret-key-2024"，
+    # 记得在 GitHub Secrets 的 API 地址里也要同步修改
+    if token != "shadow-viper-secret-key-2024":
+        return []
+
+    # 获取当前内存中所有存活的节点
+    alive_nodes = hunter.get_alive_nodes()
+    export_list = []
+
+    for node in alive_nodes:
+        # 生成节点分享链接 (如 vmess://..., ss://...)
+        # generate_node_share_link 已经在文件头部引入了，直接用即可
+        share_link = generate_node_share_link(node)
+
+        export_list.append({
+            "protocol": node.get('protocol', 'unknown'),
+            "host": node.get('host'),
+            "port": node.get('port'),
+            "country": node.get('country', 'UNK'),
+            "speed": node.get('speed', 0),
+            "name": node.get('name', f"{node.get('host')}:{node.get('port')}"),
+            "link": share_link
+        })
+
+    return export_list
