@@ -271,7 +271,7 @@ const crawlModeOptions = [
 
 const networkOptions = [
   { label: '🤖 自动模式', value: 'auto' },
-  { label: '🛰️ Shadow Matrix', value: 'node' },
+  { label: '🛰️ 节点猎手', value: 'node' },
   { label: '🌐 猎手 IP 池', value: 'proxy' },
   { label: '⚡️ 仅直连', value: 'direct' }
 ];

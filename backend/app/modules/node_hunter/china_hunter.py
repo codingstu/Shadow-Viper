@@ -30,7 +30,7 @@ class ChinaHunter:
 
         # 🎯 关键字过滤器：大幅扩充国内城市和运营商
         self.cn_keywords = [
-            "CN", "China", "中国", "回国", "back",
+            "回国", "back", "CN", "China", "中国",
             "上海", "北京", "杭州", "深圳", "广州", "成都", "武汉", "天津", "重庆", "南京", "长沙", "苏州",
             "Shanghai", "Beijing", "Shenzhen", "Hangzhou", "Guangzhou", "Chengdu", "Wuhan",
             "Aliyun", "Tencent", "Huawei", "Qcloud", "BGP", "CT", "CU", "CM",  # 运营商/云厂商
@@ -39,10 +39,9 @@ class ChinaHunter:
 
         self.sources = [
             # === 👑 神级聚合 (专门爬取 TG/Discord/Twitter) ===
-            # 这些源非常大 (几MB)，包含全球数万节点，是捞针的最佳场所
-            "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/mix",  # 爬取数千个 TG 频道
-            "https://raw.githubusercontent.com/LalatinaHub/Mineral/master/result/nodes",  # 爬取各类网站/Discord
-            "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/EternityAir",  # 混合大包
+            "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/mix",
+            "https://raw.githubusercontent.com/LalatinaHub/Mineral/master/result/nodes",
+            "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/EternityAir",
 
             # === 🔵 Telegram 订阅源 (Clash/YAML 格式) ===
             "https://raw.githubusercontent.com/vveg26/get_proxy/main/dist/clash.config.yaml",
@@ -57,17 +56,15 @@ class ChinaHunter:
             "https://raw.githubusercontent.com/learnhard-cn/free_proxy_ss/main/free",
             "https://raw.githubusercontent.com/tbbatbb/Proxy/master/dist/v2ray.config.txt",
 
-            # === 🟢 专精 CN/IP 直连列表 ===
+            # === 🟢 专精 CN/IP 直连列表 (HTTP/SOCKS5) ===
             "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/countries/CN/data.txt",
             "https://raw.githubusercontent.com/juepile/Proxy-List/main/China.txt",
             "https://raw.githubusercontent.com/list-404/CN-Proxy/main/http.txt",
             "https://raw.githubusercontent.com/peasoft/NoWars/main/result.txt",
-
-            # === 🟣 全球代理池 (TheSpeedX 等万级 IP 库) ===
-            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
-            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
-            "https://raw.githubusercontent.com/prxchk/proxy-list/main/http.txt",
-            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=5000&country=CN&ssl=all&anonymity=all",
+            # 🔥 新增：更多 HTTP/SOCKS5 源
+            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
+            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
+            "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
         ]
 
         # 初始化状态
@@ -131,21 +128,28 @@ class ChinaHunter:
 
     def _is_cn_node(self, node: Dict, source_url: str) -> bool:
         """判断是否为回国节点"""
+        # 🔥 核心修复：更严格的判断，防止误伤
         # 1. 专精源直通
         if "CN" in source_url or "China" in source_url or "cn-proxies" in source_url:
             return True
 
         # 2. 关键字匹配 (不区分大小写)
         name = node.get('name', '').upper()
-        # 排除掉常见的台湾/香港节点 (如果用户只要回国，HK/TW 往往算出国)
-        if "TW" in name or "TAIWAN" in name or "HK" in name or "HONG" in name:
-            # 除非它明确写了 "回国"
-            if "回国" not in name and "BACK" not in name:
-                return False
-
-        for kw in self.cn_keywords:
-            if kw.upper() in name:
+        
+        # 明确的回国关键字
+        back_home_keywords = ["回国", "BACK"]
+        for kw in back_home_keywords:
+            if kw in name:
                 return True
+
+        # 城市和运营商关键字 (仅当没有明确的“出境”标志时)
+        exit_keywords = ["US", "JP", "HK", "SG", "TW", "KR", "出", "->"]
+        has_exit_keyword = any(kw in name for kw in exit_keywords)
+        
+        if not has_exit_keyword:
+            for kw in self.cn_keywords:
+                if kw.upper() in name:
+                    return True
 
         return False
 
@@ -190,7 +194,8 @@ class ChinaHunter:
     def _convert_clash_proxy(self, p: Dict) -> Dict:
         try:
             proto = p.get('type')
-            if proto not in ['vmess', 'ss', 'trojan', 'vless']: return None
+            # 🔥 核心修复：允许 socks5 和 http
+            if proto not in ['vmess', 'ss', 'trojan', 'vless', 'socks5', 'http']: return None
 
             return {
                 "id": f"clash_{proto}_{p.get('server')}_{p.get('port')}",
@@ -215,6 +220,34 @@ class ChinaHunter:
         for line in text.splitlines():
             line = line.strip()
             if not line: continue
+            
+            # 🔥 核心修复：手动解析 socks5:// 和 http:// 链接
+            if line.startswith("socks5://"):
+                try:
+                    # 简单解析 socks5://user:pass@host:port 或 socks5://host:port
+                    parts = line.replace("socks5://", "").split("@")
+                    if len(parts) == 2:
+                        auth, server = parts
+                        host, port = server.split(":")
+                        nodes.append({
+                            "id": f"socks5_{host}_{port}",
+                            "name": f"SOCKS5 {host}",
+                            "protocol": "socks5",
+                            "host": host,
+                            "port": int(port),
+                        })
+                    else:
+                        host, port = parts[0].split(":")
+                        nodes.append({
+                            "id": f"socks5_{host}_{port}",
+                            "name": f"SOCKS5 {host}",
+                            "protocol": "socks5",
+                            "host": host,
+                            "port": int(port),
+                        })
+                except: pass
+                continue
+
             node = parse_node_url(line)
             if node: nodes.append(node)
         return nodes

@@ -261,52 +261,49 @@ const iframeError = ref(null);
 // 游戏列表
 const gameHistory = computed(() => historyList.value.filter(item => item.full_req.startsWith('[GAME]')));
 
-// 🔥 iframe使用的HTML（修复了未定义的错误）
+// 在 GameGenerator.vue 的 script 部分
 const iframeHtml = computed(() => {
   if (!generatedHtml.value) return '';
   
-  // 如果是3D游戏，添加基础错误处理
+  let html = generatedHtml.value;
+  
+  // 如果是3D游戏，进行额外验证
   if (gameType.value === '3d') {
-    // 检查是否已经有完整的HTML结构
-    const html = generatedHtml.value;
-    if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
-      // 包装成完整HTML
-      return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { margin: 0; padding: 0; overflow: hidden; background: #0a0a0a; color: white; }
-    #game-container { width: 100vw; height: 100vh; }
-    #error-message { 
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-      background: rgba(255,0,0,0.2); padding: 20px; border-radius: 10px; 
-      text-align: center; max-width: 80%; 
-    }
-  </style>
-</head>
-<body>
-  <div id="game-container"></div>
-  <div id="error-message" style="display:none;"></div>
-  <script>
-    try {
-      ${html}
-    } catch (error) {
-      console.error('Game initialization error:', error);
-      const errorDiv = document.getElementById('error-message');
-      if (errorDiv) {
-        errorDiv.innerHTML = '<h3>游戏初始化错误</h3><p>' + error.message + '</p>';
-        errorDiv.style.display = 'block';
+    // 检查常见的语法错误
+    const syntaxChecks = [
+      {
+        pattern: /\bnegative\s+\d+/,
+        fix: (match) => match.replace('negative', '-'),
+        message: '修复 "negative" 语法错误'
+      },
+      {
+        pattern: /new THREE\.Vector3\([^)]*negative/,
+        fix: (match) => match.replace('negative', '-'),
+        message: '修复 Vector3 参数中的语法错误'
+      },
+      {
+        pattern: /;[ \t]*\n[ \t]*\)/,
+        fix: (match) => match.replace(';', ''),
+        message: '修复行尾多余的分号'
       }
-    }
-  <\/script>
-</body>
-</html>`;
+    ];
+    
+    syntaxChecks.forEach(check => {
+      if (check.pattern.test(html)) {
+        console.warn(check.message, check.pattern.exec(html));
+        html = html.replace(check.pattern, check.fix);
+      }
+    });
+    
+    // 如果代码不完整，包装成完整HTML
+    if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
+      html = createSafeThreeJsWrapper(html);
     }
   }
-  return generatedHtml.value;
+  
+  return html;
 });
+
 
 // 🔥 API地址
 const API_BASE = `${import.meta.env.VITE_API_BASE_URL}/api/game`; 

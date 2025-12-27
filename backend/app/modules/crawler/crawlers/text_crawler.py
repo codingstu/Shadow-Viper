@@ -32,10 +32,16 @@ class BaseCrawler(ABC):
             if network_type in ["node", "auto"]:
                 if self.pool_manager.node_provider:
                     try:
-                        nodes = self.pool_manager.node_provider()
-                        if nodes:
-                            node = random.choice(nodes[:5])
-                            proxy_config = {"server": f"socks5://{node['host']}:{node['port']}"}
+                        all_nodes = self.pool_manager.node_provider()
+                        # 🔥 核心修复：允许 http 和 socks5
+                        compatible_nodes = [n for n in all_nodes if n.get('protocol') in ['socks5', 'socks', 'http']]
+                        if compatible_nodes:
+                            node = random.choice(compatible_nodes[:5])
+                            # Playwright 的 proxy server 需要完整的 URL
+                            if node['protocol'] == 'http':
+                                proxy_config = {"server": f"http://{node['host']}:{node['port']}"}
+                            else: # socks5
+                                proxy_config = {"server": f"socks5://{node['host']}:{node['port']}"}
                             proxy_name = f"🛰️ Node-{node['host']}"
                             return proxy_config, proxy_name
                     except: pass
@@ -74,8 +80,13 @@ async def request_with_chain_async(url, headers=None, stream=False, timeout=15, 
         if pool_manager:
             if network_type in ["node", "auto"] and pool_manager.node_provider:
                 try:
-                    nodes = pool_manager.node_provider()
-                    for node in nodes[:5]: chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ Node-{node['host']}", 10))
+                    all_nodes = pool_manager.node_provider()
+                    compatible_nodes = [n for n in all_nodes if n.get('protocol') in ['socks5', 'socks', 'http']]
+                    for node in compatible_nodes[:5]:
+                        if node['protocol'] == 'http':
+                             chain.append((f"http://{node['host']}:{node['port']}", f"🛰️ Node-{node['host']}", 10))
+                        else:
+                             chain.append((f"socks5://{node['host']}:{node['port']}", f"🛰️ Node-{node['host']}", 10))
                 except: pass
             if network_type in ["proxy", "auto"]:
                 alive_nodes = [p for p in pool_manager.proxies if p.score > 0]
@@ -161,7 +172,7 @@ class GeneralTextCrawler(BaseCrawler):
                 full_url = urljoin(base_url, href)
                 if full_url not in links:
                     links.append(full_url)
-        
+
         if not links:
              for a in soup.find_all('a', href=True):
                  href = a['href']
@@ -175,9 +186,9 @@ class GeneralTextCrawler(BaseCrawler):
         # 🔥 核心修复：列表页批量抓取逻辑
         if self._is_list_page(url) and not force_browser:
             yield json.dumps({"step": "process", "message": f"📂 检测到列表页，启动浏览器解析文章列表..."}) + "\n"
-            
+
             proxy_conf, proxy_name = await self.get_playwright_proxy(network_type)
-            
+
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True, proxy=proxy_conf)
                 page = await browser.new_page()
@@ -192,7 +203,7 @@ class GeneralTextCrawler(BaseCrawler):
                 finally:
                     await browser.close()
 
-            target_links = links[:5] 
+            target_links = links[:5]
             if not target_links:
                 yield json.dumps({"step": "error", "message": "⚠️ 未在列表页找到有效文章链接"}) + "\n"
                 return
@@ -202,7 +213,7 @@ class GeneralTextCrawler(BaseCrawler):
             # 🔥 核心修复：递归调用 self.crawl，确保每篇文章都走完整流程（含评论抓取）
             for i, link in enumerate(target_links):
                 yield json.dumps({"step": "process", "message": f"📄 [{i+1}/{len(target_links)}] 正在抓取: {link}"}) + "\n"
-                
+
                 # 递归调用，允许它在需要时自动切换到浏览器
                 async for chunk in self.crawl(link, network_type=network_type, force_browser=force_browser):
                     # 过滤掉递归调用中的 init 消息，避免前端日志混乱
@@ -211,9 +222,9 @@ class GeneralTextCrawler(BaseCrawler):
                         if data.get("step") == "init": continue
                     except: pass
                     yield chunk
-                
+
                 await asyncio.sleep(random.uniform(1, 3))
-            
+
             yield json.dumps({"step": "done", "message": "🎉 批量抓取完成"}) + "\n"
             return
 

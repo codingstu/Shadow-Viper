@@ -1,223 +1,285 @@
 <template>
-  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
-    <n-global-style />
-    <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
+  <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200">
+    <div class="header bg-[#1e1e20] border border-white/10 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center shadow-lg">
+      <div class="flex items-center gap-4 mb-4 md:mb-0">
+        <div class="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-lg border border-emerald-500/30">
+          <span class="text-3xl filter drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">🛰️</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-white m-0 flex items-center gap-2">
+            节点猎手 
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs border border-emerald-500/30">Node Hunter</span>
+          </h1>
+          <p class="text-xs text-gray-400 m-0 mt-1 font-mono">全网高带宽节点嗅探系统 (Vmess/Vless/Trojan)</p>
+        </div>
+      </div>
       
-      <div class="shrink-0 text-center mb-4 md:mb-6">
-        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">
-          🛰️ 节点猎手 Node Hunter
-        </h1>
-        <p class="text-xs md:text-sm text-gray-500 mt-2">
-          全网高带宽节点嗅探系统：支持 Vmess / Vless / Trojan
-        </p>
-      </div>
-
-      <div class="shrink-0 mb-4 max-w-6xl mx-auto w-full">
-        <div class="flex flex-col md:flex-row gap-3 items-center justify-between bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 shadow-lg">
-          
-          <div class="flex items-center gap-4">
-            <div class="flex flex-col items-center px-4 border-r border-gray-700">
-              <span class="text-xs text-gray-500">存活节点</span>
-              <span class="text-xl font-bold text-emerald-400">{{ stats.count }}</span>
-            </div>
-            <n-tag type="info" size="small" :bordered="false" class="bg-gray-800">
-              状态: {{ stats.running ? '⚡ 扫描运行中' : '💤 待机' }}
-            </n-tag>
-          </div>
-
-          <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-            <n-button 
-              type="info" 
-              ghost 
-              @click="copySubscription"
-              size="medium"
-              class="flex-1 md:flex-none"
-            >
-              <template #icon>📥</template> 复制订阅
-            </n-button>
-
-            <n-button 
-              type="warning" 
-              ghost
-              @click="testAllNodes" 
-              :disabled="stats.running || testingAll"
-              :loading="testingAll"
-              size="medium"
-              class="flex-1 md:flex-none"
-            >
-              <template #icon>🧪</template> {{ testingAll ? '测试中...' : '测试全部' }}
-            </n-button>
-
-            <n-button 
-              type="primary" 
-              @click="triggerScan" 
-              :disabled="stats.running"
-              :loading="stats.running"
-              size="medium"
-              class="flex-1 md:flex-none shadow-[0_0_15px_rgba(66,185,131,0.4)]"
-            >
-              <template #icon>📡</template> {{ stats.running ? '嗅探中...' : '扫描全网' }}
-            </n-button>
-          </div>
+      <div class="flex flex-wrap justify-center gap-3 items-center">
+        <div class="flex flex-col items-center bg-black/40 px-5 py-1.5 rounded-lg border border-white/5">
+          <span class="text-[10px] text-gray-500 uppercase tracking-wider">Active Nodes</span>
+          <span class="text-xl font-bold text-emerald-400 font-mono">{{ stats.count }}</span>
         </div>
-      </div>
-
-      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
         
-        <div class="w-full lg:w-1/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden order-2 lg:order-1 h-1/3 lg:h-auto">
-          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
-            <span class="font-bold text-gray-300">📟 系统终端 (Terminal)</span>
+        <n-button secondary circle type="primary" @click="showAddSourceModal = true" title="添加自定义源">
+          <template #icon>➕</template>
+        </n-button>
+
+        <n-button type="primary" secondary size="medium" @click="copySubscription">
+          <template #icon>📥</template> 复制订阅
+        </n-button>
+        
+        <n-button type="warning" secondary size="medium" @click="testAllNodes" :loading="testingAll" :disabled="stats.running">
+          <template #icon>🧪</template> {{ testingAll ? '测试中...' : '测试全部' }}
+        </n-button>
+
+        <n-button type="info" size="medium" @click="triggerScan" :loading="stats.running" class="glow-effect">
+          <template #icon>📡</template> {{ stats.running ? '正在嗅探...' : '扫描全网' }}
+        </n-button>
+      </div>
+    </div>
+    
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
+      
+      <div class="lg:col-span-4 bg-[#1e1e20] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow-lg h-[300px] lg:h-auto">
+        <div class="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center">
+          <span class="font-bold text-emerald-400 text-sm flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            系统终端 (Terminal)
+          </span>
+        </div>
+        <div class="flex-1 p-4 bg-[#121212] font-mono text-xs text-gray-300 overflow-y-auto custom-scrollbar" ref="logRef">
+          <div v-for="(log, i) in stats.logs" :key="i" class="mb-1.5 leading-relaxed break-all">
+            <span class="text-emerald-500/50 mr-2">></span>
+            <span :class="{'text-yellow-400': log.includes('⚠️'), 'text-red-400': log.includes('❌'), 'text-emerald-400': log.includes('✅')}">{{ log }}</span>
           </div>
-          
-          <div class="flex-1 overflow-y-auto p-4 bg-[#1a1a1a] font-mono text-xs space-y-1 custom-scrollbar" ref="logRef">
-            <div v-for="(log, i) in stats.logs" :key="i" class="break-all leading-relaxed">
-              <span class="text-emerald-500 mr-2">></span>
-              <span class="text-gray-400">{{ log }}</span>
-            </div>
-            <div v-if="!stats.logs?.length" class="flex items-center justify-center h-full text-gray-600 italic">
-              _等待指令输入...
-            </div>
+          <div v-if="!stats.logs?.length" class="h-full flex flex-col items-center justify-center text-gray-700 italic opacity-50">
+            <span>_等待指令输入...</span>
           </div>
         </div>
-
-        <div class="w-full lg:w-2/3 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl overflow-hidden order-1 lg:order-2 flex-1">
-          <div class="p-3 bg-[#252525] border-b border-gray-700 flex justify-between items-center shrink-0">
-            <span class="font-bold text-gray-300">🌐 全网扫描节点</span>
-            <n-tag size="small" round type="primary">{{ stats.count }} 个节点</n-tag>
-          </div>
-
-          <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#161616]">
-            <div v-if="stats.nodes && stats.nodes.length > 0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              
+      </div>
+      
+      <div class="lg:col-span-8 bg-[#1e1e20] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow-lg">
+        <div class="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
+          <div class="font-bold text-emerald-400 text-sm">🌐 节点列表 (按 IP 归属地分组)</div>
+          <n-tag size="small" round :bordered="false" type="primary" class="bg-emerald-500/20 text-emerald-400">
+            共 {{ stats.count }} 个
+          </n-tag>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#161618]">
+          <template v-if="stats.nodes && stats.nodes.length > 0">
+            <div class="flex flex-col gap-4">
               <div 
-                v-for="(node, index) in stats.nodes" 
-                :key="node.id || `${node.host}:${node.port}`" 
-                class="bg-[#252525] border border-gray-700 rounded-lg p-4 transition-all hover:border-emerald-500/50 flex flex-col gap-3 relative overflow-hidden group"
-                :class="{ 'border-amber-500/50': node.isTesting, 'opacity-60': !node.alive }"
+                v-for="group in stats.nodes" 
+                :key="group.group_name" 
+                class="border border-white/10 rounded-xl overflow-hidden bg-[#1e1e20]"
               >
-                <div v-if="node.isTesting" class="absolute top-0 left-0 h-1 bg-amber-500 animate-pulse w-full"></div>
-
-                <div class="flex justify-between items-start">
-                  <div class="flex flex-col min-w-0">
-                    <span class="font-bold text-gray-200 truncate pr-2" :title="node.name">{{ node.name }}</span>
-                    <span class="text-xs text-gray-500 font-mono mt-1">{{ node.host }}:{{ node.port }}</span>
+                <div class="px-4 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
+                  <div class="flex items-center gap-2 font-bold text-gray-200">
+                    <span class="text-lg">{{ getCountryInfo(group.group_name).flag }}</span>
+                    <span>{{ getCountryInfo(group.group_name).name }}</span>
+                    <span class="text-xs text-gray-500 ml-1 font-mono">({{ group.group_name }})</span>
                   </div>
-                  <n-tag 
-                    size="tiny" 
-                    :type="node.isTesting ? 'warning' : (node.alive ? 'success' : 'error')"
-                    :bordered="false"
-                  >
-                    {{ node.isTesting ? 'TESTING' : (node.alive ? 'ONLINE' : 'OFFLINE') }}
+                  <n-tag size="small" round :bordered="false" class="bg-black/40 text-gray-400">
+                    {{ group.nodes.length }}
                   </n-tag>
                 </div>
 
-                <div class="flex items-center justify-between text-xs bg-[#1a1a1a] p-2 rounded">
-                  <n-tag size="tiny" :bordered="false" class="bg-gray-800 text-gray-300 uppercase">
-                    {{ node.protocol || 'Unknown' }}
-                  </n-tag>
-                  <div class="flex gap-3">
-                    <span :class="getDelayTextColor(node.delay)" class="font-bold">
-                      {{ node.delay }}ms
-                    </span>
-                    <span class="text-blue-400">
-                      {{ node.speed?.toFixed(2) || '0.00' }} MB/s
-                    </span>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-2 mt-auto pt-2 border-t border-gray-700/50">
-                  <n-button size="tiny" secondary type="info" @click="copyNode(node)">
-                    复制
-                  </n-button>
-                  <n-button size="tiny" secondary @click="showQRCode(node, index)">
-                    二维码
-                  </n-button>
-                  <n-button 
-                    size="tiny" 
-                    secondary 
-                    :type="node.isTesting ? 'warning' : 'primary'"
-                    :loading="node.isTesting" 
-                    @click="testSingleNode(node, index)"
+                <div class="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                  <div 
+                    v-for="(node, index) in group.nodes" 
+                    :key="node.id || `${node.host}:${node.port}`" 
+                    class="relative group bg-black/30 border border-white/5 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-black/50 transition-all duration-300"
+                    :class="{ 'border-yellow-500/30 bg-yellow-500/5': node.isTesting }"
                   >
-                    测试
-                  </n-button>
+                    <div v-if="node.isTesting" class="absolute inset-0 bg-black/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-sm">
+                      <div class="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+
+                    <div class="flex items-center gap-2 mb-2">
+                      <n-tag size="tiny" :bordered="false" :type="getProtocolColor(node.protocol)" class="uppercase font-bold shrink-0">
+                        {{ node.protocol }}
+                      </n-tag>
+                      <span class="text-sm font-bold text-gray-200 truncate flex-1" :title="node.name">
+                        {{ node.name.replace(/^[^\w]*/, '') }}
+                      </span>
+                    </div>
+
+                    <div class="space-y-1.5 mb-3">
+                      <div class="flex items-center justify-between text-xs text-gray-500 font-mono bg-black/20 px-2 py-1 rounded">
+                        <span>HOST</span>
+                        <span class="text-gray-400 truncate max-w-[120px]" :title="node.host">{{ node.host }}</span>
+                      </div>
+                      <div class="flex items-center justify-between text-xs font-mono px-2">
+                        <span class="text-gray-500">PORT</span>
+                        <span class="text-gray-300">{{ node.port }}</span>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-white/5">
+                      <div class="flex gap-3 text-xs font-mono">
+                        <span :class="getDelayClass(node.delay)" class="font-bold">
+                           {{ node.delay > 0 ? node.delay + 'ms' : '- ms' }}
+                        </span>
+                        <span class="text-blue-400 font-bold">
+                          {{ node.speed > 0 ? node.speed.toFixed(1) + ' MB/s' : '- MB/s' }}
+                        </span>
+                      </div>
+                      
+                      <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <n-button text size="tiny" class="text-gray-400 hover:text-emerald-400" @click="copyNode(node)">
+                          复制
+                        </n-button>
+                        <span class="text-gray-700">|</span>
+                        <n-button text size="tiny" class="text-gray-400 hover:text-emerald-400" @click="showQRCode(node)">
+                          二维码
+                        </n-button>
+                         <span class="text-gray-700">|</span>
+                        <n-button text size="tiny" class="text-gray-400 hover:text-emerald-400" @click="testSingleNode(node)">
+                          测试
+                        </n-button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
             </div>
-
-            <div v-else class="flex flex-col items-center justify-center h-full text-gray-600">
-              <span class="text-6xl mb-4 opacity-20">📡</span>
-              <p>暂无节点数据，请点击“扫描全网”</p>
+          </template>
+          
+          <div v-else class="h-full flex flex-col items-center justify-center text-gray-500 py-20">
+            <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4 animate-pulse">
+              <span class="text-4xl opacity-50">📡</span>
             </div>
+            <p class="mb-4 font-mono text-sm">暂无节点数据，请启动扫描</p>
+            <n-button type="info" ghost @click="triggerScan">开始全网扫描</n-button>
           </div>
         </div>
       </div>
-
     </div>
-  </n-config-provider>
+
+    <n-modal v-model:show="showAddSourceModal">
+      <n-card
+        style="width: 600px; background: #1e1e20; border: 1px solid rgba(255,255,255,0.1);"
+        title="添加自定义订阅源"
+        :bordered="false"
+        size="huge"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="space-y-4">
+          <p class="text-gray-400 text-sm">请输入 V2Ray / Clash / 纯文本 订阅链接 (HTTP/HTTPS)</p>
+          <n-input v-model:value="newSourceUrl" placeholder="https://example.com/subscribe" type="text" />
+          <div class="flex justify-end gap-2 mt-4">
+            <n-button @click="showAddSourceModal = false">取消</n-button>
+            <n-button type="primary" @click="addSource" :loading="addingSource">确定添加</n-button>
+          </div>
+        </div>
+      </n-card>
+    </n-modal>
+
+    <n-modal v-model:show="showQRCodeModal">
+       <div class="bg-[#1e1e20] p-6 rounded-xl border border-emerald-500/30 text-center flex flex-col items-center">
+          <h3 class="text-emerald-400 font-bold mb-4 font-mono">节点二维码</h3>
+          <img v-if="qrCodeData" :src="qrCodeData" class="rounded-lg w-48 h-48 bg-white p-2" />
+          <div v-else class="w-48 h-48 flex items-center justify-center text-gray-500">生成中...</div>
+          <p class="text-gray-500 text-xs mt-4">请使用客户端 (Shadowrocket/v2rayNG) 扫码</p>
+       </div>
+    </n-modal>
+
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
 import axios from 'axios';
-// 🔥 引入 Naive UI 组件
-import { NConfigProvider, NGlobalStyle, NButton, NTag, darkTheme } from 'naive-ui';
+import { NButton, NTag, NModal, NCard, NInput, createDiscreteApi, darkTheme } from 'naive-ui';
 
-// 🔥 定义 Naive UI 的主题覆盖 (保持与爬虫模块一致)
-const themeOverrides = {
-  common: {
-    primaryColor: '#42b983',
-    primaryColorHover: '#5cd29d',
-    primaryColorPressed: '#2a9163',
-  },
-  Button: {
-    textColor: '#fff',
-  }
+const COUNTRY_MAP = {
+  'CN': { flag: '🇨🇳', name: '中国' },
+  'HK': { flag: '🇭🇰', name: '香港' },
+  'TW': { flag: '🇹🇼', name: '台湾' },
+  'MO': { flag: '🇲🇴', name: '澳门' },
+  'US': { flag: '🇺🇸', name: '美国' },
+  'JP': { flag: '🇯🇵', name: '日本' },
+  'SG': { flag: '🇸🇬', name: '新加坡' },
+  'KR': { flag: '🇰🇷', name: '韩国' },
+  'RU': { flag: '🇷🇺', name: '俄罗斯' },
+  'GB': { flag: '🇬🇧', name: '英国' },
+  'DE': { flag: '🇩🇪', name: '德国' },
+  'FR': { flag: '🇫🇷', name: '法国' },
+  'CA': { flag: '🇨🇦', name: '加拿大' },
+  'AU': { flag: '🇦🇺', name: '澳洲' },
+  'IN': { flag: '🇮🇳', name: '印度' },
+  'BR': { flag: '🇧🇷', name: '巴西' },
+  'UNK': { flag: '🌐', name: '未知区域' }
 };
-
-// --- 以下业务逻辑保持 100% 原样 ---
 
 const stats = ref({ count: 0, running: false, logs: [], nodes: [] });
 const logRef = ref(null);
 const testingAll = ref(false);
+
+// 弹窗状态
+const showAddSourceModal = ref(false);
+const newSourceUrl = ref('');
+const addingSource = ref(false);
+const showQRCodeModal = ref(false);
+const qrCodeData = ref('');
+
+const { message } = createDiscreteApi(['message'], {
+  configProviderProps: { theme: darkTheme }
+});
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 10000,
 });
 
+function getCountryInfo(code) {
+  if (!code) return COUNTRY_MAP['UNK'];
+  const upperCode = code.toUpperCase();
+  return COUNTRY_MAP[upperCode] || { flag: '🚩', name: upperCode };
+}
+
+function getProtocolColor(proto) {
+  const p = (proto || '').toLowerCase();
+  if (p.includes('vmess')) return 'success';
+  if (p.includes('vless')) return 'info';
+  if (p.includes('trojan')) return 'warning';
+  if (p.includes('ss')) return 'error';
+  return 'default';
+}
+
+function getDelayClass(delay) {
+  if (!delay || delay < 0) return 'text-gray-500';
+  if (delay < 200) return 'text-emerald-400';
+  if (delay < 500) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
 async function fetchStats() {
   try {
     const response = await api.get('/nodes/stats');
-    const newNodes = response.data.nodes.map(newNode => {
-      const oldNode = stats.value.nodes.find(n => n.host === newNode.host && n.port === newNode.port);
-      return { ...newNode, isTesting: oldNode ? oldNode.isTesting : false };
-    });
-    stats.value = { ...response.data, nodes: newNodes };
-
+    stats.value = response.data;
     await nextTick();
-    if (logRef.value) {
-      logRef.value.scrollTop = 0; // 注意：这里原逻辑可能是 scrollHeight，暂保持原样
-    }
+    if (logRef.value) logRef.value.scrollTop = 0;
   } catch (error) {
-    addLog(`❌ 获取状态失败: ${error.message}`);
+    // silent fail
   }
 }
 
 async function triggerScan() {
   try {
-    addLog('🚀 正在启动节点扫描...');
+    addLog('🚀 正在启动全网扫描...');
     await api.post('/nodes/trigger');
     fetchStats();
   } catch (error) {
-    addLog(`❌ 启动扫描失败: ${error.message}`);
+    addLog(`❌ 启动失败: ${error.message}`);
   }
 }
 
 async function testAllNodes() {
   testingAll.value = true;
-  addLog('🧪 开始测试所有节点...');
+  addLog('🧪 开始全量并发测试...');
   try {
     await api.post('/nodes/test_all');
     const interval = setInterval(async () => {
@@ -225,107 +287,135 @@ async function testAllNodes() {
       if (!stats.value.running) {
         testingAll.value = false;
         clearInterval(interval);
-        addLog('🎉 全部节点测试完成');
+        addLog('🎉 全部测试完成');
       }
     }, 2000);
   } catch (error) {
     testingAll.value = false;
-    addLog(`❌ 测试任务启动失败: ${error.message}`);
+    addLog(`❌ 测试启动失败: ${error.message}`);
   }
 }
 
-async function testSingleNode(node, index) {
+// 🔥 真实测试单个节点
+async function testSingleNode(node) {
   node.isTesting = true;
   try {
-    const response = await api.post(`/nodes/test_node/${index}`);
-    if (response.data.status === 'ok') {
-      const result = response.data.result;
-      node.alive = result.total_score > 0;
-      node.delay = result.tcp_ping_ms;
-      node.test_results = result;
+    const res = await api.post('/nodes/test_single', {
+      host: node.host,
+      port: node.port
+    });
+    
+    if (res.data.status === 'ok') {
+      message.success(`测试完成: ${res.data.result.total_score}分`);
+      // 简单更新一下UI数据，不必等轮询
+      node.delay = res.data.result.tcp_ping_ms;
+      node.alive = res.data.result.total_score > 0;
+    } else {
+      message.error('测试失败');
     }
-  } catch (error) {
-    addLog(`❌ 节点 ${node.name} 测试失败: ${error.message}`);
-    node.alive = false;
+  } catch (e) {
+    message.error('请求异常');
   } finally {
     node.isTesting = false;
   }
 }
 
-function addLog(message) {
-  const timestamp = new Date().toLocaleTimeString();
-  stats.value.logs.unshift(`[${timestamp}] ${message}`);
-  if (stats.value.logs.length > 100) {
-    stats.value.logs.pop();
+// 🔥 显示二维码
+async function showQRCode(node) {
+  showQRCodeModal.value = true;
+  qrCodeData.value = ''; // clear previous
+  try {
+    const res = await api.get('/nodes/qrcode', {
+      params: { host: node.host, port: node.port }
+    });
+    if (res.data.qrcode_data) {
+      qrCodeData.value = res.data.qrcode_data;
+    } else {
+      message.error('无法生成二维码');
+      showQRCodeModal.value = false;
+    }
+  } catch (e) {
+    message.error('获取二维码失败');
+    showQRCodeModal.value = false;
   }
 }
 
-async function copySubscription() {
+// 🔥 添加自定义源
+async function addSource() {
+  if (!newSourceUrl.value) return;
+  addingSource.value = true;
   try {
-    const response = await api.get('/nodes/subscription');
-    if (response.data.subscription) {
-      await navigator.clipboard.writeText(response.data.subscription);
-      addLog('✅ 已复制订阅链接');
+    const res = await api.post('/nodes/add_source', { url: newSourceUrl.value });
+    if (res.data.status === 'ok') {
+      message.success('添加成功，已加入扫描队列');
+      showAddSourceModal.value = false;
+      newSourceUrl.value = '';
     } else {
-      addLog(`❌ 暂无订阅链接: ${response.data.error}`);
+      message.error(res.data.message || '添加失败');
     }
-  } catch (error) {
-    addLog(`❌ 获取订阅失败: ${error.message}`);
-  }
-}
-
-async function showQRCode(node, index) {
-  try {
-    const response = await api.get(`/nodes/node/${index}/qrcode`);
-    if (response.data.qrcode_data) {
-      const modal = document.createElement('div');
-      // 保持原有内联样式，确保兼容性
-      modal.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(5px);`;
-      modal.innerHTML = `<div style="background: #1e1e24; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #42b983; box-shadow: 0 0 20px rgba(66,185,131,0.2);"><h3 style="color: #42b983; margin-bottom: 10px; font-family: monospace;">${node.name}</h3><img src="${response.data.qrcode_data}" alt="QR Code" style="border-radius: 8px;" /><p style="color:#888; font-size:12px; margin-top:10px;">点击任意处关闭</p></div>`;
-      modal.onclick = () => modal.remove();
-      document.body.appendChild(modal);
-    } else {
-      addLog(`❌ 生成二维码失败: ${response.data.error}`);
-    }
-  } catch (error) {
-    addLog(`❌ 生成二维码失败: ${error.message}`);
+  } catch (e) {
+    message.error('请求失败');
+  } finally {
+    addingSource.value = false;
   }
 }
 
 function copyNode(node) {
-  if (node.share_link) {
-    navigator.clipboard.writeText(node.share_link).then(() => addLog(`✅ 已复制分享链接: ${node.name}`));
+  const link = node.share_link || `${node.protocol}://${node.host}:${node.port}`;
+  navigator.clipboard.writeText(link).then(() => {
+    message.success(`已复制: ${node.name}`);
+  });
+}
+
+async function copySubscription() {
+  try {
+    const { data } = await api.get('/nodes/subscription');
+    if (data.subscription) {
+      await navigator.clipboard.writeText(data.subscription);
+      message.success('订阅链接已复制');
+      addLog('✅ 订阅链接已生成');
+    } else {
+      message.warning('暂无可用订阅');
+    }
+  } catch (e) {
+    message.error('获取订阅失败');
   }
 }
 
-// 辅助函数：根据延迟返回 Tailwind 文字颜色类
-function getDelayTextColor(delay) {
-  if (delay < 100) return 'text-emerald-400';
-  if (delay < 300) return 'text-amber-400';
-  return 'text-red-400';
+function addLog(msg) {
+  const ts = new Date().toLocaleTimeString();
+  stats.value.logs.unshift(`[${ts}] ${msg}`);
+  if (stats.value.logs.length > 100) stats.value.logs.pop();
 }
 
 onMounted(() => {
   fetchStats();
-  const interval = setInterval(fetchStats, 3000);
-  return () => clearInterval(interval);
+  const timer = setInterval(fetchStats, 3000);
+  return () => clearInterval(timer);
 });
 </script>
 
 <style scoped>
-/* 滚动条美化 */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: #1e1e20;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #333;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #42b983;
+  background: #10b981; 
+}
+
+.glow-effect {
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  transition: all 0.3s ease;
+}
+.glow-effect:hover {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+  transform: translateY(-1px);
 }
 </style>

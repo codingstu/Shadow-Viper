@@ -13,7 +13,7 @@
         <span class="icon">🌐</span><span class="text">猎手 IP 池</span>
       </div>
       <div class="nav-item" :class="{ active: currentModule === 'nodes' }" @click="currentModule = 'nodes'">
-        <span class="icon">🛰️</span><span class="text">Shadow Matrix</span>
+        <span class="icon">🛰️</span><span class="text">节点猎手</span>
       </div>
       <div class="nav-item" :class="{ active: currentModule === 'cyberrange' }" @click="currentModule = 'cyberrange'">
         <span class="icon">🛡️</span><span class="text">Cyber Range</span>
