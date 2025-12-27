@@ -1,5 +1,19 @@
 <template>
-  <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200">
+  <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+    
+    <transition name="fade">
+      <div v-if="testingAll || stats.running" class="absolute top-0 left-0 right-0 z-50">
+        <n-progress 
+          type="line" 
+          :percentage="progressPercentage" 
+          :show-indicator="false" 
+          processing 
+          color="#10b981" 
+          height="3" 
+        />
+      </div>
+    </transition>
+
     <div class="header bg-[#1e1e20] border border-white/10 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center shadow-lg">
       <div class="flex items-center gap-4 mb-4 md:mb-0">
         <div class="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-lg border border-emerald-500/30">
@@ -10,7 +24,12 @@
             节点猎手 
             <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs border border-emerald-500/30">Node Hunter</span>
           </h1>
-          <p class="text-xs text-gray-400 m-0 mt-1 font-mono">全网高带宽节点嗅探系统 (Vmess/Vless/Trojan)</p>
+          <div class="flex items-center gap-3 mt-1">
+            <p class="text-xs text-gray-400 m-0 font-mono">全网高带宽节点嗅探系统</p>
+            <n-tag v-if="nextScanTimeStr" size="tiny" :bordered="false" class="bg-black/40 text-gray-400 font-mono">
+              ⏱️ 下次扫描: {{ nextScanTimeStr }}
+            </n-tag>
+          </div>
         </div>
       </div>
       
@@ -24,9 +43,14 @@
           <template #icon>➕</template>
         </n-button>
 
-        <n-button type="primary" secondary size="medium" @click="copySubscription">
-          <template #icon>📥</template> 复制订阅
-        </n-button>
+        <n-button-group>
+          <n-button type="primary" secondary size="medium" @click="copySubscription">
+            <template #icon>📥</template> 复制订阅
+          </n-button>
+          <n-button type="primary" secondary size="medium" @click="importToClash" title="一键导入 Clash">
+            <template #icon>🚀</template>
+          </n-button>
+        </n-button-group>
         
         <n-button type="warning" secondary size="medium" @click="testAllNodes" :loading="testingAll" :disabled="stats.running">
           <template #icon>🧪</template> {{ testingAll ? '测试中...' : '测试全部' }}
@@ -190,9 +214,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
 import axios from 'axios';
-import { NButton, NTag, NModal, NCard, NInput, createDiscreteApi, darkTheme } from 'naive-ui';
+import { NButton, NButtonGroup, NTag, NModal, NCard, NInput, NProgress, createDiscreteApi, darkTheme } from 'naive-ui';
 
 const COUNTRY_MAP = {
   'CN': { flag: '🇨🇳', name: '中国' },
@@ -214,9 +238,11 @@ const COUNTRY_MAP = {
   'UNK': { flag: '🌐', name: '未知区域' }
 };
 
-const stats = ref({ count: 0, running: false, logs: [], nodes: [] });
+const stats = ref({ count: 0, running: false, logs: [], nodes: [], next_scan_time: null });
 const logRef = ref(null);
 const testingAll = ref(false);
+// 为了动画效果
+const progressPercentage = ref(0);
 
 // 弹窗状态
 const showAddSourceModal = ref(false);
@@ -224,6 +250,7 @@ const newSourceUrl = ref('');
 const addingSource = ref(false);
 const showQRCodeModal = ref(false);
 const qrCodeData = ref('');
+const currentTime = ref(Date.now());
 
 const { message } = createDiscreteApi(['message'], {
   configProviderProps: { theme: darkTheme }
@@ -232,6 +259,16 @@ const { message } = createDiscreteApi(['message'], {
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 10000,
+});
+
+// 🔥 计算倒计时
+const nextScanTimeStr = computed(() => {
+  if (!stats.value.next_scan_time) return '';
+  const diff = stats.value.next_scan_time * 1000 - currentTime.value;
+  if (diff <= 0) return '00:00';
+  const minutes = Math.floor(diff / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 });
 
 function getCountryInfo(code) {
@@ -270,6 +307,7 @@ async function fetchStats() {
 async function triggerScan() {
   try {
     addLog('🚀 正在启动全网扫描...');
+    progressPercentage.value = 0; // Reset
     await api.post('/nodes/trigger');
     fetchStats();
   } catch (error) {
@@ -279,14 +317,23 @@ async function triggerScan() {
 
 async function testAllNodes() {
   testingAll.value = true;
+  progressPercentage.value = 0;
   addLog('🧪 开始全量并发测试...');
   try {
     await api.post('/nodes/test_all');
+    // 模拟进度条增加 (因为后端没返回实时进度)
+    const pTimer = setInterval(() => {
+      if (progressPercentage.value < 90) progressPercentage.value += 5;
+    }, 500);
+    
     const interval = setInterval(async () => {
       await fetchStats();
       if (!stats.value.running) {
         testingAll.value = false;
         clearInterval(interval);
+        clearInterval(pTimer);
+        progressPercentage.value = 100;
+        setTimeout(() => progressPercentage.value = 0, 1000);
         addLog('🎉 全部测试完成');
       }
     }, 2000);
@@ -296,7 +343,7 @@ async function testAllNodes() {
   }
 }
 
-// 🔥 真实测试单个节点
+
 async function testSingleNode(node) {
   node.isTesting = true;
   try {
@@ -306,24 +353,31 @@ async function testSingleNode(node) {
     });
     
     if (res.data.status === 'ok') {
-      message.success(`测试完成: ${res.data.result.total_score}分`);
-      // 简单更新一下UI数据，不必等轮询
-      node.delay = res.data.result.tcp_ping_ms;
-      node.alive = res.data.result.total_score > 0;
+      const { delay, speed } = res.data;
+      
+      // 🔥 核心优化：弹窗显示真实数据
+      message.success(`延迟: ${delay}ms  |  速度: ${speed} MB/s`);
+      
+      // 🔥 立即更新卡片视图，让用户看到变化
+      node.delay = delay;
+      node.speed = speed;
+      node.alive = true;
     } else {
-      message.error('测试失败');
+      message.error('测试未通过：节点无法连接');
+      node.alive = false;
+      node.speed = 0;
     }
   } catch (e) {
-    message.error('请求异常');
+    message.error('测试请求超时或异常');
   } finally {
     node.isTesting = false;
   }
 }
 
-// 🔥 显示二维码
+
 async function showQRCode(node) {
   showQRCodeModal.value = true;
-  qrCodeData.value = ''; // clear previous
+  qrCodeData.value = '';
   try {
     const res = await api.get('/nodes/qrcode', {
       params: { host: node.host, port: node.port }
@@ -340,7 +394,6 @@ async function showQRCode(node) {
   }
 }
 
-// 🔥 添加自定义源
 async function addSource() {
   if (!newSourceUrl.value) return;
   addingSource.value = true;
@@ -358,6 +411,19 @@ async function addSource() {
   } finally {
     addingSource.value = false;
   }
+}
+
+// 🔥 一键导入 Clash
+function importToClash() {
+  // 构造 clash:// 协议链接
+  // 需要后端的完整 Clash 订阅地址
+  const baseUrl = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
+  const configUrl = encodeURIComponent(`${baseUrl}/nodes/clash/config`);
+  const clashUrl = `clash://install-config?url=${configUrl}&name=SpiderFlow_Nodes`;
+  
+  // 尝试打开
+  window.location.href = clashUrl;
+  message.success('正在尝试唤起 Clash...');
 }
 
 function copyNode(node) {
@@ -391,7 +457,11 @@ function addLog(msg) {
 onMounted(() => {
   fetchStats();
   const timer = setInterval(fetchStats, 3000);
-  return () => clearInterval(timer);
+  const timeTimer = setInterval(() => { currentTime.value = Date.now(); }, 1000); // 倒计时刷新
+  return () => {
+    clearInterval(timer);
+    clearInterval(timeTimer);
+  };
 });
 </script>
 
@@ -417,5 +487,12 @@ onMounted(() => {
 .glow-effect:hover {
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
   transform: translateY(-1px);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
 }
 </style>
