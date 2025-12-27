@@ -3,39 +3,32 @@
       <n-global-style />
       <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
         
-        <div class="shrink-0 mb-4 max-w-full mx-auto w-full">
-          <div class="bg-[#1e1e1e] p-4 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-            
-            <div class="flex items-center gap-3">
-              <span class="text-3xl filter drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]">🦅</span>
-              <div>
-                <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                  Eagle Eye <span class="text-xs bg-cyan-900/30 text-cyan-300 px-2 py-0.5 rounded ml-1 border border-cyan-500/30 align-middle">Pro Audit</span>
-                </h2>
-                <p class="text-xs text-gray-500 mt-1">全球资产隐匿审计系统 | 智能代理链路由</p>
-              </div>
-            </div>
-  
-            <div class="flex flex-col items-end gap-1 text-xs font-mono w-full md:w-auto">
-              <div class="flex items-center gap-2 justify-between md:justify-end w-full">
-                <span class="text-gray-500">VIRTUAL IDENTITY:</span>
-                <n-tag size="small" :bordered="false" class="bg-gray-800 text-amber-400 font-bold tracking-wider">
-                  {{ status.identity?.mac || 'Initializing...' }}
-                </n-tag>
-              </div>
-              <div class="flex items-center gap-2 justify-between md:justify-end w-full mt-1">
-                <span class="text-gray-500">PROXY CHAIN:</span>
-                <div class="flex gap-1 items-center" v-if="status.active_chain?.length">
-                  <div v-for="(node, i) in status.active_chain" :key="i" class="flex items-center">
-                    <span class="bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">{{ node }}</span>
-                    <span v-if="i < status.active_chain.length - 1" class="text-gray-600 mx-1">→</span>
-                  </div>
-                </div>
-                <span v-else class="text-red-500 font-bold animate-pulse">NO PROXY DETECTED</span>
-              </div>
-            </div>
-          </div>
+        <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-3 shadow-2xl flex flex-wrap justify-center items-center gap-4 mx-auto w-fit max-w-full">
+      
+      <div class="flex items-center gap-3 pl-2">
+        <div class="p-1.5 bg-gradient-to-br from-teal-500/20 to-emerald-500/20 rounded-full border border-teal-500/30">
+          <span class="text-lg">🦅</span>
         </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">Eagle Eye</h1>
+          <span class="text-[10px] text-teal-400 font-mono scale-90 origin-left">Pro Audit</span>
+        </div>
+      </div>
+
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-3 pr-2 text-[10px] font-mono">
+        <div class="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-full">
+          <span class="text-gray-500">ID:</span>
+          <span class="text-amber-400 font-bold">{{ status.identity?.mac || 'Init...' }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-gray-500">CHAIN:</span>
+          <span v-if="status.active_chain?.length" class="text-teal-400 font-bold">{{ status.active_chain.length }} Nodes</span>
+          <span v-else class="text-red-500 font-bold">OFF</span>
+        </div>
+      </div>
+    </div>
   
         <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
           

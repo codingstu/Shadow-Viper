@@ -3,30 +3,27 @@
     <n-global-style />
     <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
       
-      <div class="shrink-0 mb-4 max-w-full mx-auto w-full">
-        <div class="bg-[#1e1e1e] p-4 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-          
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-              <span class="text-2xl">🏭</span>
-            </div>
-            <div>
-              <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                Data Refinery <span class="text-xs bg-emerald-900/30 text-emerald-300 px-2 py-0.5 rounded ml-1 border border-emerald-500/30 align-middle">PRO</span>
-              </h1>
-              <p class="text-xs text-gray-500 mt-1">智能数据清洗与增强流水线</p>
-            </div>
-          </div>
-
-          <div v-if="status === 'processing'" class="flex items-center gap-2 bg-[#1a1a1a] px-3 py-1.5 rounded-full border border-emerald-500/30">
-            <span class="relative flex h-3 w-3">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span class="text-emerald-400 text-xs font-bold tracking-wider">ENGINE RUNNING</span>
-          </div>
+      <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-4 shadow-2xl flex justify-center items-center gap-4 mx-auto w-fit">
+      <div class="flex items-center gap-3 pl-2">
+        <div class="p-1.5 bg-gradient-to-br from-slate-500/20 to-gray-500/20 rounded-full border border-slate-500/30">
+          <span class="text-lg">🏭</span>
+        </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">Data Refinery</h1>
+          <span class="text-[10px] text-slate-400 font-mono scale-90 origin-left">ETL Center</span>
         </div>
       </div>
+
+      <transition name="fade">
+        <div v-if="status === 'processing'" class="flex items-center gap-1.5 bg-[#1a1a1a] px-3 py-1 rounded-full border border-emerald-500/30 mr-2">
+          <span class="relative flex h-1.5 w-1.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+          </span>
+          <span class="text-emerald-400 text-[9px] font-bold tracking-wider">RUNNING</span>
+        </div>
+      </transition>
+    </div>
 
       <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
         

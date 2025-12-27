@@ -14,54 +14,55 @@
       </div>
     </transition>
 
-    <div class="header bg-[#1e1e20] border border-white/10 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center shadow-lg">
-      <div class="flex items-center gap-4 mb-4 md:mb-0">
-        <div class="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-lg border border-emerald-500/30">
-          <span class="text-3xl filter drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">🛰️</span>
+    <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-3 shadow-2xl flex flex-wrap justify-center items-center gap-4 mx-auto w-fit max-w-full">
+      
+      <div class="flex items-center gap-3 pl-2">
+        <div class="p-1.5 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-full border border-emerald-500/30">
+          <span class="text-lg">🛰️</span>
         </div>
-        <div>
-          <h1 class="text-xl font-bold text-white m-0 flex items-center gap-2">
-            节点猎手 
-            <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs border border-emerald-500/30">Node Hunter</span>
-          </h1>
-          <div class="flex items-center gap-3 mt-1">
-            <p class="text-xs text-gray-400 m-0 font-mono">全网高带宽节点嗅探系统</p>
-            <n-tag v-if="nextScanTimeStr" size="tiny" :bordered="false" class="bg-black/40 text-gray-400 font-mono">
-              ⏱️ 下次扫描: {{ nextScanTimeStr }}
-            </n-tag>
-          </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">节点猎手</h1>
+          <span class="text-[10px] text-emerald-400 font-mono scale-90 origin-left">Node Hunter</span>
         </div>
       </div>
-      
-      <div class="flex flex-wrap justify-center gap-3 items-center">
-        <div class="flex flex-col items-center bg-black/40 px-5 py-1.5 rounded-lg border border-white/5">
-          <span class="text-[10px] text-gray-500 uppercase tracking-wider">Active Nodes</span>
-          <span class="text-xl font-bold text-emerald-400 font-mono">{{ stats.count }}</span>
+
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-3 hidden sm:flex">
+        <div class="flex flex-col items-center leading-none">
+          <span class="text-[9px] text-gray-500 uppercase">ACTIVE</span>
+          <span class="text-xs font-bold text-emerald-400 font-mono">{{ stats.count }}</span>
         </div>
-        
-        <n-button secondary circle type="primary" @click="showAddSourceModal = true" title="添加自定义源">
+        <n-tag v-if="nextScanTimeStr" size="tiny" :bordered="false" class="bg-black/40 text-gray-400 font-mono scale-90">
+          ⏱️ {{ nextScanTimeStr }}
+        </n-tag>
+      </div>
+
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-2 pr-2">
+        <n-button secondary circle size="tiny" type="primary" @click="showAddSourceModal = true" title="添加源">
           <template #icon>➕</template>
         </n-button>
 
-        <n-button-group>
-          <n-button type="primary" secondary size="medium" @click="copySubscription">
-            <template #icon>📥</template> 复制订阅
+        <n-button-group size="tiny">
+          <n-button type="primary" secondary @click="copySubscription" title="复制订阅">
+            <template #icon>📥</template>
           </n-button>
-          <n-button type="primary" secondary size="medium" @click="importToClash" title="一键导入 Clash">
+          <n-button type="primary" secondary @click="importToClash" title="导入 Clash">
             <template #icon>🚀</template>
           </n-button>
         </n-button-group>
         
-        <n-button type="warning" secondary size="medium" @click="testAllNodes" :loading="testingAll" :disabled="stats.running">
-          <template #icon>🧪</template> {{ testingAll ? '测试中...' : '测试全部' }}
+        <n-button type="warning" secondary size="tiny" @click="testAllNodes" :loading="testingAll" :disabled="stats.running">
+          {{ testingAll ? '测试中' : '测速' }}
         </n-button>
 
-        <n-button type="info" size="medium" @click="triggerScan" :loading="stats.running" class="glow-effect">
-          <template #icon>📡</template> {{ stats.running ? '正在嗅探...' : '扫描全网' }}
+        <n-button type="info" size="tiny" @click="triggerScan" :loading="stats.running" class="glow-effect">
+          <template #icon>📡</template> {{ stats.running ? '扫描中' : '扫描' }}
         </n-button>
       </div>
     </div>
-    
     <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
       
       <div class="lg:col-span-4 bg-[#1e1e20] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow-lg h-[300px] lg:h-auto">

@@ -3,14 +3,17 @@
     <n-global-style />
     <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
       
-      <div class="shrink-0 text-center mb-4 md:mb-6">
-        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-500">
-          🌌 Chaos Humanizer <span class="text-xs bg-purple-600/30 text-purple-300 px-2 py-0.5 rounded ml-2 align-middle border border-purple-500/30">Ultra</span>
-        </h1>
-        <p class="text-xs md:text-sm text-gray-500 mt-2">
-          多维语言熵增系统：思维链可视化 · 自动回译 · 深度去重
-        </p>
+      <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-4 shadow-2xl flex justify-center items-center gap-4 mx-auto w-fit">
+      <div class="flex items-center gap-3 pl-2 pr-4">
+        <div class="p-1.5 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-full border border-amber-500/30">
+          <span class="text-lg">🌌</span>
+        </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">Chaos Humanizer</h1>
+          <span class="text-[10px] text-amber-400 font-mono scale-90 origin-left">Ultra Edition</span>
+        </div>
       </div>
+    </div>
 
       <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
         

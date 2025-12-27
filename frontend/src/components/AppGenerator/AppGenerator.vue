@@ -3,30 +3,29 @@
     <n-global-style />
     <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
       
-      <div class="shrink-0 mb-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(147,51,234,0.4)]">
-              <span class="text-xl">⚡</span>
-            </div>
-            <div>
-              <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-                App Generator <span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded ml-1 border border-purple-500/30 align-middle">DeepSeek Engine</span>
-              </h1>
-            </div>
-          </div>
-          
-          <div class="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1.5 rounded-full border border-gray-800">
-            <span class="relative flex h-2.5 w-2.5">
-              <span v-if="isStreaming" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="isStreaming ? 'bg-green-500' : 'bg-gray-500'"></span>
-            </span>
-            <span class="text-xs font-mono" :class="isStreaming ? 'text-green-400' : 'text-gray-500'">
-              {{ isStreaming ? 'GENERATING...' : 'READY' }}
-            </span>
-          </div>
+      <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-4 shadow-2xl flex justify-center items-center gap-4 mx-auto w-fit">
+      <div class="flex items-center gap-3 pl-2">
+        <div class="p-1.5 bg-gradient-to-br from-pink-500/20 to-rose-500/20 rounded-full border border-pink-500/30">
+          <span class="text-lg">⚡</span>
+        </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">App Generator</h1>
+          <span class="text-[10px] text-pink-400 font-mono scale-90 origin-left">DeepSeek AI</span>
         </div>
       </div>
+
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-1.5 pr-3">
+        <span class="relative flex h-1.5 w-1.5">
+          <span v-if="isStreaming" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-1.5 w-1.5" :class="isStreaming ? 'bg-green-500' : 'bg-gray-500'"></span>
+        </span>
+        <span class="text-[9px] font-mono" :class="isStreaming ? 'text-green-400' : 'text-gray-500'">
+          {{ isStreaming ? 'GENERATING' : 'READY' }}
+        </span>
+      </div>
+    </div>
 
       <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
         

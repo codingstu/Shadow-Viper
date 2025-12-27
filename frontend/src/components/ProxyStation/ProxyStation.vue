@@ -3,16 +3,50 @@
     <n-global-style />
     <div class="h-screen w-full bg-[#121212] text-gray-200 flex flex-col p-2 md:p-4 overflow-hidden font-mono">
       
-      <div class="shrink-0 text-center mb-4 md:mb-6">
-        <h1 class="text-2xl md:text-3xl font-bold text-primary bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">
-          🌐 代理猎手池 Proxy Hunter Pool
-        </h1>
-        <p class="text-xs md:text-sm text-gray-500 mt-2">
-          <n-tag size="small" :bordered="false" class="bg-emerald-900/30 text-emerald-400 mr-2">v1.3 HTTPS版</n-tag>
-          基于付费通道的全球免费代理采集与清洗系统
-        </p>
+      <div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rounded-full p-2 mb-3 shadow-2xl flex flex-wrap justify-center items-center gap-4 mx-auto w-fit max-w-full">
+      
+      <div class="flex items-center gap-3 pl-2">
+        <div class="p-1.5 bg-gradient-to-br from-blue-500/20 to-sky-500/20 rounded-full border border-blue-500/30">
+          <span class="text-lg">🌐</span>
+        </div>
+        <div class="flex flex-col leading-none">
+          <h1 class="text-sm font-bold text-white m-0">代理猎手</h1>
+          <span class="text-[10px] text-blue-400 font-mono scale-90 origin-left">Proxy Pool</span>
+        </div>
       </div>
 
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-3 hidden sm:flex">
+        <div class="flex flex-col items-center leading-none">
+          <span class="text-[9px] text-gray-500 uppercase">COUNT</span>
+          <span class="text-xs font-bold text-blue-400 font-mono">{{ stats.count }}</span>
+        </div>
+        <div class="flex items-center gap-1.5 bg-black/30 px-2 py-0.5 rounded-full">
+          <span class="relative flex h-1.5 w-1.5" v-if="stats.running">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+          </span>
+          <span class="text-[10px] font-mono" :class="stats.running ? 'text-amber-400' : 'text-gray-500'">
+            {{ stats.running ? 'RUNNING' : 'IDLE' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+      <div class="flex items-center gap-2 pr-2">
+        <n-button type="primary" size="tiny" @click="triggerTask" :loading="stats.running" :disabled="stats.running">
+          <template #icon>🚀</template> 启动
+        </n-button>
+        <n-button secondary type="info" size="tiny" @click="fetchData">
+          <template #icon>🔄</template>
+        </n-button>
+        <n-button secondary type="error" size="tiny" @click="cleanPool">
+          <template #icon>🗑️</template>
+        </n-button>
+      </div>
+    </div>
       <div class="shrink-0 mb-4 max-w-7xl mx-auto w-full">
         <div class="bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
           
