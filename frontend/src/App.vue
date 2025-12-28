@@ -1,6 +1,10 @@
 <template>
-  <n-config-provider :theme="darkTheme">
+ <n-config-provider :theme="darkTheme">
     <n-message-provider>
+      <!-- 🔥 核心修复：将两个悬浮组件放在布局顶层 -->
+      <GlobalNetworkStatus />
+      <ServerMonitor />
+
       <div class="app-layout">
         <nav class="sidebar">
           <div class="logo">🕷️</div>
@@ -33,7 +37,6 @@
             <span class="icon">🎮</span><span class="text">Game 创世</span>
           </div>
 
-          <!-- 🔥 新增：访客日志入口 -->
           <div class="nav-item mt-auto" @click="showVisitorLog = true">
             <span class="icon">👁️‍🗨️</span><span class="text">访客日志</span>
           </div>
@@ -57,7 +60,6 @@
         </main>
       </div>
 
-      <!-- 🔥 新增：访客日志模态框 -->
       <VisitorLog v-model:show="showVisitorLog" />
 
     </n-message-provider>
@@ -66,10 +68,13 @@
 
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue';
+import GlobalNetworkStatus from './components/GlobalNetworkStatus.vue';
+import ServerMonitor from './components/ServerMonitor.vue';
 import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
 
-// 🔥 新增：导入访客日志组件
 const VisitorLog = defineAsyncComponent(() => import('./components/VisitorLog/VisitorLog.vue'));
+
+// 🔥 恢复：所有原有的模块
 
 const ViperCrawler = defineAsyncComponent(() => import('./components/ViperCrawler/ViperCrawler.vue'));
 const AlchemyStudio = defineAsyncComponent(() => import('./components/AlchemyStudio/AlchemyStudio.vue'));
@@ -82,7 +87,7 @@ const AppGenerator = defineAsyncComponent(() => import('./components/AppGenerato
 const GameGenerator = defineAsyncComponent(() => import('./components/GameGenerator/GameGenerator.vue'));
 
 const currentModule = ref('crawler');
-const showVisitorLog = ref(false); // 新增
+const showVisitorLog = ref(false);
 
 const currentComponent = computed(() => {
   switch (currentModule.value) {
@@ -101,22 +106,25 @@ const currentComponent = computed(() => {
 </script>
 
 <style>
-body,
-html {
+/* 全局重置 */
+body, html {
   margin: 0;
   padding: 0;
   min-height: 100vh;
   background: linear-gradient(135deg, #1e2024 0%, #121212 100%);
   color: #e0e0e0;
-  overflow: hidden;
+  /* 移除 overflow: hidden，允许手机端内容滚动 */
+  overflow-x: hidden;
 }
 
+/* 布局容器 */
 .app-layout {
   display: flex;
   height: 100vh;
   width: 100vw;
 }
 
+/* --- 桌面端侧边栏默认样式 --- */
 .sidebar {
   width: 70px;
   position: sticky;
@@ -132,26 +140,36 @@ html {
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   flex-shrink: 0;
+  /* 隐藏滚动条 */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+
+.sidebar::-webkit-scrollbar { display: none; }
 
 .sidebar:hover {
   width: 180px;
 }
 
+/* --- 内容区域 --- */
 .content-area {
   flex: 1;
   padding: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto; /* 让内容区域独立滚动 */
+  overflow-x: hidden;
   position: relative;
+  scroll-behavior: smooth;
 }
 
+/* --- Logo & 导航项 --- */
 .logo {
   font-size: 28px;
   margin-bottom: 30px;
   cursor: default;
+  flex-shrink: 0;
 }
 
 .nav-item {
@@ -164,6 +182,7 @@ html {
   transition: all 0.2s;
   box-sizing: border-box;
   border-left: 3px solid transparent;
+  white-space: nowrap; /* 防止文字换行 */
 }
 
 .nav-item:hover {
@@ -270,7 +289,7 @@ html {
   }
 }
 
-/* 加载动画样式 */
+/* 加载动画 */
 .loading-placeholder {
   height: 100%;
   display: flex;
@@ -279,7 +298,6 @@ html {
   align-items: center;
   background-color: #1e2024;
 }
-
 .spinner {
   width: 40px;
   height: 40px;
@@ -289,16 +307,6 @@ html {
   animation: spin 1s linear infinite;
   margin-bottom: 15px;
 }
-
-.loading-text {
-  color: #666;
-  font-family: monospace;
-  font-size: 14px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+.loading-text { color: #666; font-family: monospace; font-size: 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

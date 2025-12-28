@@ -18,13 +18,16 @@ from .modules.shodan.shodan_engine import router as shodan_router
 from .core.ai_hub import set_pool_manager
 from fastapi.responses import HTMLResponse
 from .modules.system.monitor import router as system_router
+from .modules.visitor_tracker.tracker import visitor_tracker_middleware, create_db_and_tables, router as visitor_router
 
 load_dotenv()
 
 # 设置全局 Pool Manager (core/ai_hub 用)
 set_pool_manager(pool_manager)
 
+# 🔥 新增：应用访客追踪中间件
 app = FastAPI(title="SpiderFlow API")
+app.middleware("http")(visitor_tracker_middleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +40,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
+    # 🔥 新增：创建访客数据库表
+    create_db_and_tables()
     # 1. 启动代理池管理器
     if pool_manager:
         pool_manager.start()
@@ -93,6 +98,8 @@ app.include_router(generator_router)
 app.include_router(game_router)
 app.include_router(shodan_router)
 app.include_router(system_router, prefix="/api")
+# 🔥 新增：注册访客追踪路由
+app.include_router(visitor_router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
