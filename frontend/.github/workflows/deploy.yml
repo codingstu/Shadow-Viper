@@ -1,0 +1,39 @@
+name: Azure Auto Deploy
+
+on:
+  push:
+    branches:
+      - main  # 监听 main 分支的更新
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Azure VM
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AZURE_HOST }}
+          username: ${{ secrets.AZURE_USER }}
+          key: ${{ secrets.AZURE_SSH_KEY }}
+          script: |
+            # 1. 进入项目目录 (根据你的实际路径修改)
+            cd /home/${{ secrets.AZURE_USER }}/Shadow-Viper
+            
+            # 2. 拉取最新代码
+            git pull origin main
+            
+            # 3. 激活虚拟环境并安装新依赖
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # 4. 重启服务 (假设你使用 nohup 或 pm2)
+            # 先杀掉旧进程 (根据端口号 8000 查找)
+            kill -9 $(lsof -t -i:8000) || true
+            
+            # 启动新进程
+            nohup python main.py > backend.log 2>&1 &
+            
+            echo "✅ Azure Backend Deployment Completed!"
