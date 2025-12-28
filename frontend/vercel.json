@@ -2,7 +2,7 @@
     "rewrites": [
       {
         "source": "/api/:path*",
-        "destination": "https://texture-restored-pays-bibliographic.trycloudflare.comapi/:path*"
+        "destination": "https://api.996828.xyz/api/:path*"
       }
     ]
   }
