@@ -19,6 +19,8 @@ from .core.ai_hub import set_pool_manager
 from fastapi.responses import HTMLResponse
 from .modules.system.monitor import router as system_router
 from .modules.visitor_tracker.tracker import visitor_tracker_middleware, create_db_and_tables, router as visitor_router
+from .modules.system.monitor import router as monitor_router
+from .modules.visitor_tracker.tracker import router as tracker_router
 
 load_dotenv()
 
@@ -100,6 +102,8 @@ app.include_router(shodan_router)
 app.include_router(system_router, prefix="/api")
 # 🔥 新增：注册访客追踪路由
 app.include_router(visitor_router)
+app.include_router(monitor_router, prefix="/api/system", tags=["System"])
+app.include_router(tracker_router, prefix="/api/visitor", tags=["Visitor"])
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
