@@ -58,7 +58,7 @@ class Dvwamanager:
     IMAGE_NAME = "vulnerables/web-dvwa:latest"
     HOST_PORT = 8081
 
-    @staticmethod
+    @classmethod
     async def start(cls):
         client = docker.from_env()
         try:
