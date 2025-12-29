@@ -332,42 +332,57 @@
   const getTargetUrl = (id) => `http://localhost:${getTargetPort(id)}`;
   
   // 🔥 核心修复：真实启动逻辑
-  const startTarget = async (id) => {
-      const target = targets.value.find(t => t.id === id);
-      if (!target) return;
-  
-      isProcessing.value = true;
-      target.status = 'starting';
-      addLog(`正在启动 ${target.name} (需 Docker)...`);
-  
-      try {
-          let endpoint = '';
-          if (target.type === 'dvwa') endpoint = `${apiBaseUrl.value}/api/cyber/targets/dvwa/start`;
-          if (target.type === 'metasploitable') endpoint = `${apiBaseUrl.value}/api/cyber/targets/metasploitable/start`;
-          if (target.type === 'webgoat') endpoint = `${apiBaseUrl.value}/api/cyber/targets/webgoat/start`;
-  
-          // 发送请求，带上端口参数
-          const res = await axios.post(endpoint, { target_id: id, port: getTargetPort(id) });
-  
-          // 🔥 关键判断：只有后端返回 success=True 才置为 running
-          if (res.data.success) {
-              target.status = 'running';
-              addLog(`✅ 启动成功! 访问地址: ${getTargetUrl(id)}`);
-              checkBackend(); // 刷新计数
-          } else {
-              target.status = 'stopped';
-              addLog(`❌ 启动失败: ${res.data.message}`);
-              if (res.data.message.includes("Docker")) {
-                  addLog("💡 提示: 请确保本机已安装 Docker Desktop 并正在运行！");
-              }
-          }
-      } catch (e) {
-          target.status = 'stopped';
-          addLog(`❌ 请求异常: ${e.message}`);
-      } finally {
-          isProcessing.value = false;
-      }
-  };
+  // 🔥 核心修复：真实启动逻辑 (适配线上域名)
+const startTarget = async (id) => {
+    const target = targets.value.find(t => t.id === id);
+    if (!target) return;
+
+    isProcessing.value = true;
+    target.status = 'starting';
+    addLog(`正在启动 ${target.name} (需 Docker)...`);
+
+    try {
+        let endpoint = '';
+        if (target.type === 'dvwa') endpoint = `${apiBaseUrl.value}/api/cyber/targets/dvwa/start`;
+        if (target.type === 'metasploitable') endpoint = `${apiBaseUrl.value}/api/cyber/targets/metasploitable/start`;
+        if (target.type === 'webgoat') endpoint = `${apiBaseUrl.value}/api/cyber/targets/webgoat/start`;
+
+        // 发送请求
+        const res = await axios.post(endpoint, { target_id: id, port: getTargetPort(id) });
+        const data = res.data;
+
+        // 🟢 [修正] 兼容两种成功判断 (success=true 或 status='success')
+        const isSuccess = data.success || data.status === 'success';
+
+        if (isSuccess) {
+            target.status = 'running';
+
+            // 🟢 [核心] 获取后端返回的 access_url (环境变量里的域名)，如果没有则回退到本地
+            const dynamicUrl = data.access_url || getTargetUrl(id);
+
+            // 将该地址存入 target 对象，供“访问”按钮使用
+            target.accessUrl = dynamicUrl;
+
+            addLog(`✅ 启动成功! 访问地址: ${dynamicUrl}`);
+
+            // 🚀 自动在新标签页打开靶场
+            window.open(dynamicUrl, '_blank');
+
+            checkBackend();
+        } else {
+            target.status = 'stopped';
+            addLog(`❌ 启动失败: ${data.message}`);
+            if (data.message && data.message.includes("Docker")) {
+                addLog("💡 提示: 请确保服务器已安装 Docker 并正在运行！");
+            }
+        }
+    } catch (e) {
+        target.status = 'stopped';
+        addLog(`❌ 请求异常: ${e.message}`);
+    } finally {
+        isProcessing.value = false;
+    }
+};
   
   const stopTarget = async (id) => {
       const target = targets.value.find(t => t.id === id);
@@ -393,8 +408,11 @@
   };
   
   const accessTarget = (id) => {
-      window.open(getTargetUrl(id), '_blank');
-  };
+        const target = targets.value.find(t => t.id === id);
+        // 🟢 [修正] 优先使用后端返回的动态地址
+        const url = target.accessUrl || getTargetUrl(id);
+        window.open(url, '_blank');
+    };
   
   const attackTarget = async (id) => {
       addLog(`⚔️ 发起模拟攻击 (SQL Injection)...`);

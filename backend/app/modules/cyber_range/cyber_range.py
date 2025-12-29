@@ -59,24 +59,50 @@ class Dvwamanager:
     HOST_PORT = 8081
 
     @staticmethod
-    async def start():
+    async def start(cls):
+        client = docker.from_env()
         try:
-            if not client: return {"success": False, "message": "Docker不可用"}
+            # 检查容器是否已存在
             try:
-                c = client.containers.get(Dvwamanager.CONTAINER_NAME)
-                if c.status != "running": c.start()
-            except:
-                client.containers.run(Dvwamanager.IMAGE_NAME, name=Dvwamanager.CONTAINER_NAME,
-                                      ports={'80/tcp': ('127.0.0.1', 8081)}, detach=True,
-                                      environment={'DB_SERVER': '127.0.0.1'})
-            return {"success": True, "message": "DVWA 已启动"}
+                container = client.containers.get(cls.CONTAINER_NAME)
+                if container.status == "running":
+                    # 🟢 [修改点 1] 获取动态配置的域名，如果没有则回退到 localhost
+                    public_url = os.getenv("CYBER_RANGE_DOMAIN", "http://localhost:8081")
+                    return {
+                        "status": "success",
+                        "message": "DVWA 已经在运行中",
+                        "access_url": public_url  # 返回动态地址
+                    }
+                else:
+                    container.start()
+            except docker.errors.NotFound:
+                # 启动新容器
+                client.containers.run(
+                    cls.IMAGE_NAME,
+                    detach=True,
+                    ports={'80/tcp': 8081},
+                    name=cls.CONTAINER_NAME,
+                    auto_remove=True
+                )
+
+            # 🟢 [修改点 2] 启动成功后，同样返回动态地址
+            public_url = os.getenv("CYBER_RANGE_DOMAIN", "http://localhost:8081")
+
+            return {
+                "status": "success",
+                "message": "DVWA 靶场启动成功",
+                "access_url": public_url,  # 返回给前端
+                "internal_port": 8081
+            }
+
         except Exception as e:
-            return {"success": False, "message": str(e)}
+            return {"status": "error", "message": f"启动失败: {str(e)}"}
 
     @staticmethod
     async def stop():
         try:
-            client.containers.get(Dvwamanager.CONTAINER_NAME).stop(); return {"success": True}
+            client.containers.get(Dvwamanager.CONTAINER_NAME).stop();
+            return {"success": True}
         except:
             return {"success": False}
 
@@ -111,7 +137,8 @@ class MetasploitableManager:
     @staticmethod
     async def stop():
         try:
-            client.containers.get(MetasploitableManager.CONTAINER_NAME).stop(); return {"success": True}
+            client.containers.get(MetasploitableManager.CONTAINER_NAME).stop();
+            return {"success": True}
         except:
             return {"success": False}
 
@@ -147,7 +174,8 @@ class WebGoatManager:
     @staticmethod
     async def stop():
         try:
-            client.containers.get(WebGoatManager.CONTAINER_NAME).stop(); return {"success": True}
+            client.containers.get(WebGoatManager.CONTAINER_NAME).stop();
+            return {"success": True}
         except:
             return {"success": False}
 
