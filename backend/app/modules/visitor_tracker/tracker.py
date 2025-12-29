@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import ipapi
 import logging
+from datetime import datetime, timedelta  # 确保导入了 timedelta
 
 # ==================== 配置 ====================
 DATABASE_URL = "sqlite:///./visitor_log.db"
@@ -122,6 +123,15 @@ async def get_visitor_stats():
     db = SessionLocal()
     try:
         total_count = db.query(VisitorLog).count()
-        return {"total_visitors": total_count}
+        # 2. 🔥 新增：当前在线人数 (仅统计最近 5 分钟内活跃的独立 IP)
+        five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+        online_count = db.query(VisitorLog.ip_address).filter(
+            VisitorLog.timestamp >= five_mins_ago
+        ).distinct().count()
+
+        return {
+            "total_visitors": total_count,
+            "online_count": max(1, online_count)
+        }
     finally:
         db.close()
