@@ -86,7 +86,7 @@ def convert_node_to_supabase_format(node: Dict, index: int = 0, region: str = 'm
 async def upload_to_supabase(nodes: List[Dict]) -> bool:
     """
     将节点数据上传到 Supabase
-    为大陆和海外分别上传一份数据，标记不同的 region
+    每个节点只上传一条记录，包含 mainland_score/mainland_latency 和 overseas_score/overseas_latency
     
     返回：是否上传成功
     """
@@ -100,29 +100,34 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
         logger.info(f"📤 初始化 Supabase 连接: {SUPABASE_URL[:30]}...")
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         
-        # 转换节点格式（生成两个地区的版本）
-        mainland_data = []
-        overseas_data = []
+        # 转换节点格式（单个记录包含两个地区数据）
+        all_data = []
         
         for i, node in enumerate(nodes):
             try:
-                # 大陆版本
-                mainland_converted = convert_node_to_supabase_format(node, i, region='mainland')
-                mainland_data.append(mainland_converted)
-                
-                # 海外版本
-                overseas_converted = convert_node_to_supabase_format(node, i, region='overseas')
-                overseas_data.append(overseas_converted)
+                # 将节点转换为 Supabase 格式（包含两个地区的数据）
+                converted = {
+                    "id": f"{node.get('host')}:{node.get('port')}",
+                    "content": node,  # 完整的节点数据
+                    "is_free": i < 20,  # 前 20 个标记为免费
+                    "mainland_score": int(node.get('mainland_score', 0)),
+                    "mainland_latency": int(node.get('mainland_latency', 9999)),
+                    "overseas_score": int(node.get('overseas_score', 0)),
+                    "overseas_latency": int(node.get('overseas_latency', 9999)),
+                    "speed": int(max(node.get('mainland_score', 0), node.get('overseas_score', 0))),
+                    "latency": int(min(node.get('mainland_latency', 9999), node.get('overseas_latency', 9999))),
+                    "updated_at": datetime.now().isoformat()
+                }
+                all_data.append(converted)
             except Exception as e:
                 logger.warning(f"⚠️ 节点转换失败 {node.get('id')}: {e}")
                 continue
         
-        if not mainland_data or not overseas_data:
+        if not all_data:
             logger.warning("⚠️ 没有有效节点可上传")
             return False
         
-        all_data = mainland_data + overseas_data
-        logger.info(f"📋 准备上传 {len(nodes)} 个节点 × 2 地区 = {len(all_data)} 条记录...")
+        logger.info(f"📋 准备上传 {len(all_data)} 条节点记录（每条包含大陆和海外测试数据）...")
         
         # 分批上传（避免单次请求过大）
         batch_size = 50
@@ -145,7 +150,7 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                 continue
         
         if total_uploaded > 0:
-            logger.info(f"✅ Supabase 上传完成: 共 {total_uploaded} / {len(all_data)} 条数据 (大陆+海外各 {len(nodes)} 条)")
+            logger.info(f"✅ Supabase 上传完成: 共 {total_uploaded} / {len(all_data)} 条数据")
             return True
         else:
             logger.error("❌ Supabase 上传失败: 没有数据成功上传")
