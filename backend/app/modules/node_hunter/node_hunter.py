@@ -22,6 +22,8 @@ from ..link_scraper.link_scraper import LinkScraper
 from .parsers import parse_node_url
 from .validators import test_node_network, NodeTestResult
 from .config_generator import generate_node_share_link, generate_subscription_content, generate_clash_config
+from .advanced_speed_test import run_advanced_speed_test
+from .supabase_helper import upload_to_supabase, check_supabase_connection
 
 try:
     from ..proxy.proxy_engine import manager as pool_manager
@@ -279,6 +281,22 @@ class NodeHunter:
             self.add_log(f"🔍 解析成功 {len(unique_nodes)} 个唯一节点", "INFO")
 
             await self.test_and_update_nodes(unique_nodes)
+            
+            # 🔥 新增：高级双地区测速（可选）
+            if os.getenv('ADVANCED_TEST_ENABLED', 'false').lower() == 'true':
+                self.add_log("🚀 启动高级双地区测速...", "INFO")
+                tested_nodes = await run_advanced_speed_test(self.nodes)
+                self.nodes = tested_nodes
+                
+                # 上传到 Supabase
+                alive_nodes = [n for n in self.nodes if n.get('alive')]
+                if alive_nodes:
+                    self.add_log(f"📤 准备上传 {len(alive_nodes)} 个节点到 Supabase...", "INFO")
+                    success = await upload_to_supabase(alive_nodes)
+                    if success:
+                        self.add_log("✅ Supabase 上传成功！", "SUCCESS")
+                    else:
+                        self.add_log("⚠️ Supabase 上传失败或跳过", "WARNING")
 
         except Exception as e:
             self.add_log(f"💥 扫描错误: {e}", "ERROR")

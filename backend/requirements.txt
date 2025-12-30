@@ -71,3 +71,5 @@ uvicorn==0.38.0
 xlsxwriter==3.2.9
 yarl==1.22.0
 psutil
+supabase==2.3.5
+ipapi==1.2.3
