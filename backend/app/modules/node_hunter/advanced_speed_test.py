@@ -101,18 +101,22 @@ async def test_nodes_via_aliyun(nodes: List[Dict], mark_field: str = 'mainland')
 
                             if orig:
                                 latency = res['latency']
+                                # 优先使用外部服务返回的 score（如果有的话），否则使用 latency
+                                speed_score = res.get('score', 0)
                                 
-                                # 大陆优化的评分
-                                if latency < 50:
-                                    speed_score = 50
-                                elif latency < 100:
-                                    speed_score = 30
-                                elif latency < 200:
-                                    speed_score = 10
-                                elif latency < 350:
-                                    speed_score = 3
-                                else:
-                                    speed_score = 1
+                                # 如果没有 score，则根据 latency 计算（备选方案）
+                                if speed_score == 0 and latency > 0:
+                                    # 大陆优化的评分规则
+                                    if latency < 50:
+                                        speed_score = 100
+                                    elif latency < 100:
+                                        speed_score = 80
+                                    elif latency < 200:
+                                        speed_score = 60
+                                    elif latency < 350:
+                                        speed_score = 40
+                                    else:
+                                        speed_score = 20
 
                                 orig[f'{mark_field}_latency'] = latency
                                 orig[f'{mark_field}_score'] = speed_score
@@ -199,18 +203,22 @@ async def test_nodes_via_cloudflare(nodes: List[Dict], mark_field: str = 'overse
 
                             if orig:
                                 latency = res['latency']
+                                # 优先使用外部服务返回的 score（如果有的话），否则使用 latency
+                                speed_score = res.get('score', 0)
                                 
-                                # 国外优化的评分
-                                if latency < 100:
-                                    speed_score = 50
-                                elif latency < 150:
-                                    speed_score = 30
-                                elif latency < 250:
-                                    speed_score = 10
-                                elif latency < 400:
-                                    speed_score = 3
-                                else:
-                                    speed_score = 1
+                                # 如果没有 score，则根据 latency 计算（备选方案）
+                                if speed_score == 0 and latency > 0:
+                                    # 国外优化的评分规则
+                                    if latency < 100:
+                                        speed_score = 100
+                                    elif latency < 150:
+                                        speed_score = 80
+                                    elif latency < 250:
+                                        speed_score = 60
+                                    elif latency < 400:
+                                        speed_score = 40
+                                    else:
+                                        speed_score = 20
 
                                 orig[f'{mark_field}_latency'] = latency
                                 orig[f'{mark_field}_score'] = speed_score
