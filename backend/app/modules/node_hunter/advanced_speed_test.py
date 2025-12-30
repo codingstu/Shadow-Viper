@@ -32,18 +32,19 @@ def extract_host_port(node: Dict) -> tuple:
     return None, None
 
 
-async def test_nodes_via_aliyun(nodes: List[Dict]) -> List[Dict]:
+async def test_nodes_via_aliyun(nodes: List[Dict], mark_field: str = 'mainland') -> List[Dict]:
     """
-    使用 Aliyun FC 为大陆节点进行测速
+    使用 Aliyun FC 为节点进行大陆测速
     优化参数：针对大陆用户的延迟标准
+    mark_field: 结果字段前缀 (默认 'mainland')
     """
     if not ALIYUN_FC_URL:
         logger.warning("⚠️ ALIYUN_FC_URL not configured, skipping mainland test")
         return []
 
-    logger.info(f"🚀 [Aliyun FC] 开始大陆测速 ({len(nodes)} 个 CN 节点)...")
+    logger.info(f"🚀 [Aliyun FC] 开始大陆测速 ({len(nodes)} 个节点)...")
 
-    valid_nodes = []
+    tested_nodes = []
     batch_size = 15
     total_success = 0
     total_failed = 0
@@ -113,13 +114,10 @@ async def test_nodes_via_aliyun(nodes: List[Dict]) -> List[Dict]:
                                 else:
                                     speed_score = 1
 
-                                orig['advanced_latency_mainland'] = latency
-                                orig['advanced_speed_score'] = speed_score
-                                orig['tested_via'] = 'aliyun'
-                                orig['test_time'] = datetime.now().isoformat()
-
-                                valid_nodes.append(orig)
-                                logger.info(f"     ✅ {orig.get('host')} | 延迟: {latency}ms (大陆真实)")
+                                orig[f'{mark_field}_latency'] = latency
+                                orig[f'{mark_field}_score'] = speed_score
+                                tested_nodes.append(orig)
+                                logger.info(f"     ✅ {orig.get('host')} | {mark_field} 延迟: {latency}ms (分数: {speed_score})")
                     else:
                         error_text = await resp.text()
                         logger.warning(f"     ⚠️ Aliyun 返回错误 {resp.status}: {error_text[:100]}")
@@ -129,23 +127,23 @@ async def test_nodes_via_aliyun(nodes: List[Dict]) -> List[Dict]:
 
             await asyncio.sleep(0.5)
 
-    valid_nodes.sort(key=lambda x: x.get("advanced_speed_score", 0), reverse=True)
-    logger.info(f"✅ [Aliyun] 测速完成: {len(valid_nodes)} / {len(nodes)} 节点可用 (成功: {total_success}, 失败: {total_failed})")
-    return valid_nodes
+    logger.info(f"✅ [Aliyun] 测速完成: {len(tested_nodes)} / {len(nodes)} 节点成功 (成功: {total_success}, 失败: {total_failed})")
+    return tested_nodes
 
 
-async def test_nodes_via_cloudflare(nodes: List[Dict]) -> List[Dict]:
+async def test_nodes_via_cloudflare(nodes: List[Dict], mark_field: str = 'overseas') -> List[Dict]:
     """
-    使用 Cloudflare Workers 为国外节点进行测速
+    使用 Cloudflare Workers 为节点进行国外测速
     优化参数：针对国外用户的延迟标准
+    mark_field: 结果字段前缀 (默认 'overseas')
     """
     if not CLOUDFLARE_WORKER_URL:
         logger.warning("⚠️ CLOUDFLARE_WORKER_URL not configured, skipping overseas test")
         return []
 
-    logger.info(f"🚀 [Cloudflare] 开始国外测速 ({len(nodes)} 个非 CN 节点)...")
+    logger.info(f"🚀 [Cloudflare] 开始国外测速 ({len(nodes)} 个节点)...")
 
-    valid_nodes = []
+    tested_nodes = []
     batch_size = 15
     total_success = 0
     total_failed = 0
@@ -214,13 +212,10 @@ async def test_nodes_via_cloudflare(nodes: List[Dict]) -> List[Dict]:
                                 else:
                                     speed_score = 1
 
-                                orig['advanced_latency_overseas'] = latency
-                                orig['advanced_speed_score'] = speed_score
-                                orig['tested_via'] = 'cloudflare'
-                                orig['test_time'] = datetime.now().isoformat()
-
-                                valid_nodes.append(orig)
-                                logger.info(f"     ✅ {orig.get('host')} | 延迟: {latency}ms (国外真实)")
+                                orig[f'{mark_field}_latency'] = latency
+                                orig[f'{mark_field}_score'] = speed_score
+                                tested_nodes.append(orig)
+                                logger.info(f"     ✅ {orig.get('host')} | {mark_field} 延迟: {latency}ms (分数: {speed_score})")
                     else:
                         error_text = await resp.text()
                         logger.warning(f"     ⚠️ Cloudflare 返回错误 {resp.status}: {error_text[:100]}")
@@ -230,16 +225,17 @@ async def test_nodes_via_cloudflare(nodes: List[Dict]) -> List[Dict]:
 
             await asyncio.sleep(0.5)
 
-    valid_nodes.sort(key=lambda x: x.get("advanced_speed_score", 0), reverse=True)
-    logger.info(f"✅ [Cloudflare] 测速完成: {len(valid_nodes)} / {len(nodes)} 节点可用 (成功: {total_success}, 失败: {total_failed})")
-    return valid_nodes
+    logger.info(f"✅ [Cloudflare] 测速完成: {len(tested_nodes)} / {len(nodes)} 节点成功 (成功: {total_success}, 失败: {total_failed})")
+    return tested_nodes
 
 
 async def run_advanced_speed_test(nodes: List[Dict]) -> List[Dict]:
     """
     主函数：运行双地区高级测速
+    为所有节点同时进行 Aliyun（大陆）和 Cloudflare（海外）测速
+    
     输入：从基础测速得到的活跃节点
-    输出：添加了高级测速指标的节点列表
+    输出：添加了 mainland_score/latency 和 overseas_score/latency 的节点列表
     """
     if not ADVANCED_TEST_ENABLED:
         logger.info("⏭️ 高级测速未启用，跳过（设置 ADVANCED_TEST_ENABLED=true 启用）")
@@ -247,28 +243,34 @@ async def run_advanced_speed_test(nodes: List[Dict]) -> List[Dict]:
 
     logger.info(f"🚀 开始高级双地区测速（{len(nodes)} 个节点）...")
 
-    # 按国家分类
-    cn_nodes = [n for n in nodes if n.get('country') == 'CN']
-    overseas_nodes = [n for n in nodes if n.get('country') != 'CN']
+    all_tested = {}
+    
+    # 同时对所有节点进行大陆测速
+    if ALIYUN_FC_URL:
+        mainland_results = await test_nodes_via_aliyun(nodes, mark_field='mainland')
+        for node in mainland_results:
+            node_key = f"{node.get('host')}:{node.get('port')}"
+            if node_key not in all_tested:
+                all_tested[node_key] = {}
+            all_tested[node_key].update(node)
 
-    logger.info(f"📊 节点分类: 🇨🇳 CN={len(cn_nodes)}, 🌍 其他={len(overseas_nodes)}")
+    # 同时对所有节点进行国外测速
+    if CLOUDFLARE_WORKER_URL:
+        overseas_results = await test_nodes_via_cloudflare(nodes, mark_field='overseas')
+        for node in overseas_results:
+            node_key = f"{node.get('host')}:{node.get('port')}"
+            if node_key not in all_tested:
+                all_tested[node_key] = {}
+            all_tested[node_key].update(node)
 
-    all_tested = []
-
-    # 大陆测速
-    if cn_nodes:
-        cn_results = await test_nodes_via_aliyun(cn_nodes)
-        all_tested.extend(cn_results)
-
-    # 国外测速
-    if overseas_nodes:
-        cf_results = await test_nodes_via_cloudflare(overseas_nodes)
-        all_tested.extend(cf_results)
-
-    # 合并结果，那些没测速成功的节点保持原样
-    untested_nodes = [n for n in nodes if n not in all_tested]
-    final_nodes = all_tested + untested_nodes
+    # 合并结果
+    final_nodes = []
+    for orig_node in nodes:
+        node_key = f"{orig_node.get('host')}:{orig_node.get('port')}"
+        if node_key in all_tested:
+            # 将测速结果合并回原始节点
+            orig_node.update(all_tested[node_key])
+        final_nodes.append(orig_node)
 
     logger.info(f"✅ 高级测速完成: {len(all_tested)} / {len(nodes)} 个节点成功测速")
-
     return final_nodes
