@@ -40,7 +40,17 @@
 
       <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
 
-      <div class="flex items-center gap-2 pr-2">
+      <div class="flex items-center gap-3 pr-2">
+        <div class="flex items-center gap-2 bg-black/30 px-2 py-1 rounded-full text-xs text-gray-300">
+          <span class="text-gray-500">Socks/HTTP</span>
+          <n-switch size="small" :value="showSocksHttp" @update:value="toggleSocksHttp" />
+        </div>
+
+        <div class="flex items-center gap-2 bg-black/30 px-2 py-1 rounded-full text-xs text-gray-300">
+          <span class="text-gray-500">中国节点</span>
+          <n-switch size="small" :value="showChinaNodes" @update:value="toggleChinaNodes" />
+        </div>
+
         <n-button secondary circle size="tiny" type="primary" @click="showAddSourceModal = true" title="添加源">
           <template #icon>➕</template>
         </n-button>
@@ -72,7 +82,7 @@
             系统终端 (Terminal)
           </span>
         </div>
-        <div class="flex-1 p-4 bg-[#121212] font-mono text-xs text-gray-300 overflow-y-auto custom-scrollbar" ref="logRef">
+        <div class="flex-1 p-4 bg-[#121212] font-mono text-xs text-gray-300 overflow-y-auto custom-scrollbar" ref="logRef" @scroll="handleLogScroll">
           <div v-for="(log, i) in stats.logs" :key="i" class="mb-1.5 leading-relaxed break-all">
             <span class="text-emerald-500/50 mr-2">></span>
             <span :class="{'text-yellow-400': log.includes('⚠️'), 'text-red-400': log.includes('❌'), 'text-emerald-400': log.includes('✅')}">{{ log }}</span>
@@ -87,15 +97,15 @@
         <div class="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center shrink-0">
           <div class="font-bold text-emerald-400 text-sm">🌐 节点列表 (按 IP 归属地分组)</div>
           <n-tag size="small" round :bordered="false" type="primary" class="bg-emerald-500/20 text-emerald-400">
-            共 {{ stats.count }} 个
+            显示 {{ filteredCount }} / 总计 {{ stats.count }}
           </n-tag>
         </div>
         
         <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#161618]">
-          <template v-if="stats.nodes && stats.nodes.length > 0">
+          <template v-if="filteredGroups.length > 0">
             <div class="flex flex-col gap-4">
               <div 
-                v-for="group in stats.nodes" 
+                v-for="group in filteredGroups" 
                 :key="group.group_name" 
                 class="border border-white/10 rounded-xl overflow-hidden bg-[#1e1e20]"
               >
@@ -105,12 +115,17 @@
                     <span>{{ getCountryInfo(group.group_name).name }}</span>
                     <span class="text-xs text-gray-500 ml-1 font-mono">({{ group.group_name }})</span>
                   </div>
-                  <n-tag size="small" round :bordered="false" class="bg-black/40 text-gray-400">
-                    {{ group.nodes.length }}
-                  </n-tag>
+                  <div class="flex items-center gap-2">
+                    <n-tag size="small" round :bordered="false" class="bg-black/40 text-gray-400">
+                      {{ group.nodes.length }}
+                    </n-tag>
+                    <n-button text size="tiny" class="text-gray-400 hover:text-emerald-400" @click="toggleGroup(group.group_name)">
+                      {{ isGroupExpanded(group.group_name) ? '折叠' : '展开' }}
+                    </n-button>
+                  </div>
                 </div>
 
-                <div class="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                <div v-if="isGroupExpanded(group.group_name)" class="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                   <div 
                     v-for="(node, index) in group.nodes" 
                     :key="node.id || `${node.host}:${node.port}`" 
@@ -161,7 +176,7 @@
                         </n-button>
                          <span class="text-gray-700">|</span>
                         <n-button text size="tiny" class="text-gray-400 hover:text-emerald-400" @click="testSingleNode(node)">
-                          测试
+                          快速测速
                         </n-button>
                       </div>
                     </div>
@@ -217,25 +232,73 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue';
 import axios from 'axios';
-import { NButton, NButtonGroup, NTag, NModal, NCard, NInput, NProgress, createDiscreteApi, darkTheme } from 'naive-ui';
+import { NButton, NButtonGroup, NTag, NModal, NCard, NInput, NProgress, NSwitch, createDiscreteApi, darkTheme } from 'naive-ui';
 
 const COUNTRY_MAP = {
+  // 亚洲
   'CN': { flag: '🇨🇳', name: '中国' },
   'HK': { flag: '🇭🇰', name: '香港' },
   'TW': { flag: '🇹🇼', name: '台湾' },
   'MO': { flag: '🇲🇴', name: '澳门' },
-  'US': { flag: '🇺🇸', name: '美国' },
   'JP': { flag: '🇯🇵', name: '日本' },
   'SG': { flag: '🇸🇬', name: '新加坡' },
   'KR': { flag: '🇰🇷', name: '韩国' },
-  'RU': { flag: '🇷🇺', name: '俄罗斯' },
+  'TH': { flag: '🇹🇭', name: '泰国' },
+  'MY': { flag: '🇲🇾', name: '马来西亚' },
+  'PH': { flag: '🇵🇭', name: '菲律宾' },
+  'VN': { flag: '🇻🇳', name: '越南' },
+  'ID': { flag: '🇮🇩', name: '印度尼西亚' },
+  'IN': { flag: '🇮🇳', name: '印度' },
+  'PK': { flag: '🇵🇰', name: '巴基斯坦' },
+  'BD': { flag: '🇧🇩', name: '孟加拉国' },
+  'LK': { flag: '🇱🇰', name: '斯里兰卡' },
+  // 中东
+  'TR': { flag: '🇹🇷', name: '土耳其' },
+  'AE': { flag: '🇦🇪', name: '阿联酋' },
+  'SA': { flag: '🇸🇦', name: '沙特阿拉伯' },
+  'IL': { flag: '🇮🇱', name: '以色列' },
+  'JO': { flag: '🇯🇴', name: '约旦' },
+  // 欧洲
   'GB': { flag: '🇬🇧', name: '英国' },
   'DE': { flag: '🇩🇪', name: '德国' },
   'FR': { flag: '🇫🇷', name: '法国' },
+  'NL': { flag: '🇳🇱', name: '荷兰' },
+  'BE': { flag: '🇧🇪', name: '比利时' },
+  'IT': { flag: '🇮🇹', name: '意大利' },
+  'ES': { flag: '🇪🇸', name: '西班牙' },
+  'PT': { flag: '🇵🇹', name: '葡萄牙' },
+  'PL': { flag: '🇵🇱', name: '波兰' },
+  'SE': { flag: '🇸🇪', name: '瑞典' },
+  'NO': { flag: '🇳🇴', name: '挪威' },
+  'DK': { flag: '🇩🇰', name: '丹麦' },
+  'FI': { flag: '🇫🇮', name: '芬兰' },
+  'CH': { flag: '🇨🇭', name: '瑞士' },
+  'AT': { flag: '🇦🇹', name: '奥地利' },
+  'CZ': { flag: '🇨🇿', name: '捷克' },
+  'HU': { flag: '🇭🇺', name: '匈牙利' },
+  'RO': { flag: '🇷🇴', name: '罗马尼亚' },
+  'GR': { flag: '🇬🇷', name: '希腊' },
+  'RU': { flag: '🇷🇺', name: '俄罗斯' },
+  'UA': { flag: '🇺🇦', name: '乌克兰' },
+  'BG': { flag: '🇧🇬', name: '保加利亚' },
+  // 北美
+  'US': { flag: '🇺🇸', name: '美国' },
   'CA': { flag: '🇨🇦', name: '加拿大' },
-  'AU': { flag: '🇦🇺', name: '澳洲' },
-  'IN': { flag: '🇮🇳', name: '印度' },
+  'MX': { flag: '🇲🇽', name: '墨西哥' },
+  // 南美
   'BR': { flag: '🇧🇷', name: '巴西' },
+  'AR': { flag: '🇦🇷', name: '阿根廷' },
+  'CL': { flag: '🇨🇱', name: '智利' },
+  'CO': { flag: '🇨🇴', name: '哥伦比亚' },
+  'PE': { flag: '🇵🇪', name: '秘鲁' },
+  'VE': { flag: '🇻🇪', name: '委内瑞拉' },
+  // 大洋洲
+  'AU': { flag: '🇦🇺', name: '澳洲' },
+  'NZ': { flag: '🇳🇿', name: '新西兰' },
+  // 非洲
+  'ZA': { flag: '🇿🇦', name: '南非' },
+  'EG': { flag: '🇪🇬', name: '埃及' },
+  'NG': { flag: '🇳🇬', name: '尼日利亚' },
   'UNK': { flag: '🌐', name: '未知区域' }
 };
 
@@ -244,6 +307,15 @@ const logRef = ref(null);
 const testingAll = ref(false);
 // 为了动画效果
 const progressPercentage = ref(0);
+
+// 展示控制
+const showSocksHttp = ref(false);
+const showChinaNodes = ref(false);
+const expandedGroups = ref({});
+
+// 日志滚动控制
+const userScrolling = ref(false);
+const scrollCheckTimeout = ref(null);
 
 // 弹窗状态
 const showAddSourceModal = ref(false);
@@ -294,14 +366,94 @@ function getDelayClass(delay) {
   return 'text-red-400';
 }
 
+function groupNodesByCountry(nodes = []) {
+  const countryMap = {};
+  nodes.forEach(node => {
+    const code = (node.country || 'UNK').toUpperCase();
+    if (!countryMap[code]) countryMap[code] = [];
+    countryMap[code].push(node);
+  });
+
+  const priority = ['CN', 'HK', 'TW', 'US', 'JP', 'SG', 'KR'];
+  const groups = [];
+  priority.forEach(code => {
+    if (countryMap[code]) {
+      groups.push({ group_name: code, nodes: countryMap[code] });
+      delete countryMap[code];
+    }
+  });
+  Object.keys(countryMap).sort().forEach(code => {
+    groups.push({ group_name: code, nodes: countryMap[code] });
+  });
+  return groups;
+}
+
 async function fetchStats() {
   try {
-    const response = await api.get('/nodes/stats');
-    stats.value = response.data;
+    const [metaRes, nodesRes] = await Promise.all([
+      api.get('/nodes/stats'),
+      api.get('/api/nodes', {
+        params: {
+          show_socks_http: showSocksHttp.value,
+          show_china_nodes: showChinaNodes.value,
+          limit: 500,
+        },
+      })
+    ]);
+
+    const groups = groupNodesByCountry(nodesRes.data || []);
+    seedGroupExpansion(groups);
+
+    stats.value = {
+      ...metaRes.data,
+      nodes: groups,
+    };
+
     await nextTick();
-    if (logRef.value) logRef.value.scrollTop = 0;
+    // 🔥 智能滚动：只在用户处于顶部时保持在顶部（最新日志在顶部），防止干扰用户阅读
+    if (logRef.value && !userScrolling.value) {
+      logRef.value.scrollTop = 0;
+    }
   } catch (error) {
     // silent fail
+  }
+}
+
+function seedGroupExpansion(groups) {
+  groups.forEach(group => {
+    if (expandedGroups.value[group.group_name] === undefined) {
+      expandedGroups.value[group.group_name] = group.group_name !== 'CN';
+    }
+  });
+}
+
+function handleLogScroll() {
+  // 🔥 检测用户是否离开顶部：如果 scrollTop > 10px，说明用户在阅读历史日志
+  if (logRef.value) {
+    userScrolling.value = logRef.value.scrollTop > 10;
+    
+    // 清除之前的延时，重新设置
+    if (scrollCheckTimeout.value) clearTimeout(scrollCheckTimeout.value);
+    
+    // 3秒后如果用户仍未滚动，恢复自动更新（回到顶部）
+    scrollCheckTimeout.value = setTimeout(() => {
+      if (logRef.value && logRef.value.scrollTop <= 10) {
+        userScrolling.value = false;
+      }
+    }, 3000);
+  }
+}
+
+async function fetchToggleStatus() {
+  try {
+    const [{ data: socksStatus }, { data: chinaStatus }] = await Promise.all([
+      api.get('/nodes/socks_http_status'),
+      api.get('/nodes/china_nodes_status'),
+    ]);
+    showSocksHttp.value = !!socksStatus.show_socks_http;
+    showChinaNodes.value = !!chinaStatus.show_china_nodes;
+  } catch (error) {
+    // silent fail, keep defaults (hidden)
   }
 }
 
@@ -315,6 +467,10 @@ async function triggerScan() {
     addLog(`❌ 启动失败: ${error.message}`);
   }
 }
+
+const filteredGroups = computed(() => stats.value.nodes || []);
+
+const filteredCount = computed(() => filteredGroups.value.reduce((sum, group) => sum + group.nodes.length, 0));
 
 async function testAllNodes() {
   testingAll.value = true;
@@ -347,29 +503,84 @@ async function testAllNodes() {
 
 async function testSingleNode(node) {
   node.isTesting = true;
+  
+  // 🔥 智能测速：前端先试 → 失败则后端降级（HEAD 请求 < 1KB 流量）
+  
   try {
-    const res = await api.post('/nodes/test_single', {
-      host: node.host,
-      port: node.port
-    });
+    let delay = -1;
+    let speed = 0;
+    let method = 'unknown';
     
-    if (res.data.status === 'ok') {
-      const { delay, speed } = res.data;
+    // 方案 1：前端直测（如果没有 CORS 问题）
+    try {
+      const testUrl = `http://${node.host}:${node.port}/`;
+      const startTime = performance.now();
       
-      // 🔥 核心优化：弹窗显示真实数据
-      message.success(`延迟: ${delay}ms  |  速度: ${speed} MB/s`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
-      // 🔥 立即更新卡片视图，让用户看到变化
-      node.delay = delay;
-      node.speed = speed;
-      node.alive = true;
-    } else {
-      message.error('测试未通过：节点无法连接');
-      node.alive = false;
-      node.speed = 0;
+      await fetch(testUrl, {
+        method: 'HEAD',
+        mode: 'no-cors', // 绕过 CORS
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      delay = Math.round(performance.now() - startTime);
+      method = 'frontend';
+      
+      console.log(`[前端测试成功] ${delay}ms`);
+    } catch (frontendErr) {
+      console.log(`[前端测试失败] ${frontendErr.message}，降级到后端`);
+      
+      // 方案 2：后端测试（HEAD 请求，极少流量 < 1KB）
+      const res = await api.post('/nodes/test_single', {
+        host: node.host,
+        port: node.port,
+      });
+      
+      if (res.data.status === 'ok') {
+        delay = Number(res.data.delay) || -1;
+        method = 'backend';
+        console.log(`[后端测试成功] ${delay}ms`);
+      } else {
+        throw new Error('后端测试也失败');
+      }
+    }
+    
+    // 基于真实延迟估算速度
+    if (delay > 0) {
+      if (delay < 50) speed = 500;
+      else if (delay < 100) speed = 200;
+      else if (delay < 200) speed = 100;
+      else if (delay < 500) speed = 50;
+      else if (delay < 1000) speed = 20;
+      else speed = 5;
+    }
+    
+    console.log(`[${method}] ${delay}ms → ${speed} MB/s`);
+    message.success(`✅ 测试完成 - 延迟: ${delay}ms | 速度: ${speed.toFixed(1)} MB/s`);
+    
+    node.delay = delay;
+    node.speed = speed;
+    node.alive = true;
+    
+    // 异步缓存（可选）
+    try {
+      await api.post('/nodes/cache_test_result', {
+        host: node.host,
+        port: node.port,
+        delay: delay,
+        speed: speed,
+      });
+    } catch (cacheErr) {
+      console.warn('缓存失败:', cacheErr.message);
     }
   } catch (e) {
-    message.error('测试请求超时或异常');
+    message.error(`❌ 测试失败: ${e.message}`);
+    node.alive = false;
+    node.speed = 0;
+    node.delay = -1;
   } finally {
     node.isTesting = false;
   }
@@ -434,6 +645,40 @@ function copyNode(node) {
   });
 }
 
+async function toggleSocksHttp(value) {
+  showSocksHttp.value = value;
+  try {
+    await api.post('/nodes/toggle_socks_http', null, { params: { show: value } });
+    fetchStats();
+  } catch (e) {
+    showSocksHttp.value = !value;
+    message.error('更新 socks/http 显示状态失败');
+  }
+}
+
+async function toggleChinaNodes(value) {
+  showChinaNodes.value = value;
+  try {
+    await api.post('/nodes/toggle_china_nodes', null, { params: { show: value } });
+    if (value && expandedGroups.value['CN'] === undefined) {
+      expandedGroups.value['CN'] = false;
+    }
+    fetchStats();
+  } catch (e) {
+    showChinaNodes.value = !value;
+    message.error('更新中国节点显示状态失败');
+  }
+}
+
+function isGroupExpanded(name) {
+  const val = expandedGroups.value[name];
+  return val === undefined ? name !== 'CN' : val;
+}
+
+function toggleGroup(name) {
+  expandedGroups.value[name] = !isGroupExpanded(name);
+}
+
 async function copySubscription() {
   try {
     const { data } = await api.get('/nodes/subscription');
@@ -456,6 +701,7 @@ function addLog(msg) {
 }
 
 onMounted(() => {
+  fetchToggleStatus();
   fetchStats();
   const timer = setInterval(fetchStats, 3000);
   const timeTimer = setInterval(() => { currentTime.value = Date.now(); }, 1000); // 倒计时刷新

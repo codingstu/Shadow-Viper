@@ -1,0 +1,133 @@
+
+> spiderflow-frontend@1.0.0 dev
+> vite
+
+
+  VITE v5.4.21  ready in 358 ms
+
+  ➜  Local:   http://localhost:5173/
+23:06:07 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+23:09:09 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+23:10:02 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+23:54:47 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+00:59:48 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:09:25 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:25:21 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:29:16 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:34:43 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:41:02 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:44:00 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:44:30 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:50:02 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+01:53:06 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:13:47 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:13:58 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:14:06 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+Vim: Warning: Output is not to a terminal
+Vim: Warning: Input is not from a terminal
+[?1049h[>4;2m[?1h=[?2004h[?1004h[1;24r[?12h[?12l[22;2t[22;1t[27m[29m[m[H[2J[?2004l[>4;m[?2004h[>4;2m[?25l[24;1H"~/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js"[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m<g/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js" 14662L, 512279B[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[1;1H'use strict';
+
+Object.defineProperty(exports, '__esModule', {
+  value: true
+});
+function _objectWithoutPropertiesLoose(r, e) {
+  if (null == r) return {};
+  var t = {};
+  for (var n in r) if ({}.hasOwnProperty.call(r, n)) {
+    if (-1 !== e.indexOf(n)) continue;
+    t[n] = r[n];
+  }
+  return t;
+}
+class Position {
+  constructor(line, col, index) {
+    this.line = void 0;
+    this.column = void 0;
+    this.index = void 0;
+    this.line = line;
+    this.column = col;
+    this.index = index;
+  }[1;1H[?25h[?4m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[24;1H[?2004l[>4;m[?1004l[?2004l[?1l>[?1049l[>4;mVim: Error reading input, exiting...
+Vim: Finished.
+[24;1H[23;2t[23;1t
+
+Could not open index.js in the editor.
+The editor process exited with an error: (code 1).
+
+02:19:07 [vite] Internal server error: [vue/compiler-sfc] Identifier 'showPrecisionTestModal' has already been declared. (384:15)
+
+/Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue
+672|  }
+673|  
+674|  async function showPrecisionTestModal(node) {
+   |                 ^
+675|    currentPrecisionNode.value = node;
+676|    precisionTestSize.value = 50; // 重置为50MB
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:384:15
+  202|      </div>
+  203|  
+  204|      <n-modal v-model:show="showAddSourceModal">
+     |                                  ^
+  205|        <n-card
+  206|          style="width: 600px; background: #1e1e20; border: 1px solid rgba(255,255,255,0.1);"
+      at constructor (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:367:19)
+      at Parser.raise (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:6624:19)
+      at ScopeHandler.checkRedeclarationInScope (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:1646:19)
+      at ScopeHandler.declareName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:1612:12)
+      at Parser.registerFunctionStatementId (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13542:16)
+      at Parser.parseFunction (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13526:12)
+      at Parser.parseFunctionStatement (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13201:17)
+      at Parser.parseStatementContent (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12966:25)
+      at Parser.parseStatementLike (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at Parser.parseModuleItem (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12820:17)
+02:19:54 [vite] Internal server error: [vue/compiler-sfc] Identifier 'showPrecisionTestModal' has already been declared. (384:15)
+
+/Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue
+672|  }
+673|  
+674|  async function showPrecisionTestModal(node) {
+   |                 ^
+675|    currentPrecisionNode.value = node;
+676|    precisionTestSize.value = 50; // 重置为50MB
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:384:15
+  202|      </div>
+  203|  
+  204|      <n-modal v-model:show="showAddSourceModal">
+     |                                  ^
+  205|        <n-card
+  206|          style="width: 600px; background: #1e1e20; border: 1px solid rgba(255,255,255,0.1);"
+      at constructor (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:367:19)
+      at Parser.raise (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:6624:19)
+      at ScopeHandler.checkRedeclarationInScope (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:1646:19)
+      at ScopeHandler.declareName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:1612:12)
+      at Parser.registerFunctionStatementId (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13542:16)
+      at Parser.parseFunction (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13526:12)
+      at Parser.parseFunctionStatement (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:13201:17)
+      at Parser.parseStatementContent (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12966:25)
+      at Parser.parseStatementLike (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at Parser.parseModuleItem (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@babel/parser/lib/index.js:12820:17)
+02:23:36 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+03:35:51 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+03:35:52 [vite] Internal server error: Invalid end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:232:11
+  230|            >
+  231|              {{ precisionTesting ? '测速中...' : '开始精确测速' }}
+  232|            </n-button>
+     |             ^
+  233|          </div>
+  234|        </div>
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2391:9)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+03:36:37 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+03:37:22 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css

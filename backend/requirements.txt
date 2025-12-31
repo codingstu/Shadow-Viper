@@ -73,3 +73,4 @@ yarl==1.22.0
 psutil
 supabase==2.3.5
 ipapi==1.0.4
+loguru==0.7.3

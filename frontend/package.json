@@ -1,7 +1,7 @@
 {
-  "name": "frontend",
-  "private": true,
-  "version": "0.0.0",
+  "name": "spiderflow-frontend",
+  "version": "1.0.0",
+  "description": "SpiderFlow Web Intelligence Platform Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,17 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.13.2",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "autoprefixer": "^10.4.0",
+    "axios": "^1.6.0",
     "hls.js": "^1.6.15",
     "naive-ui": "^2.43.2",
-    "vfonts": "^0.0.3",
-    "vue": "^3.5.24"
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.0.0",
+    "vue": "^3.4.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.1",
-    "autoprefixer": "^10.4.23",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.1",
-    "vite": "^5.4.8"
+    "@vue/compiler-sfc": "^3.4.0"
   }
 }

@@ -11,8 +11,12 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+def get_supabase_credentials():
+    """在运行时读取 Supabase 凭证，优先使用 service_role key 以绕过 RLS"""
+    url = os.getenv("SUPABASE_URL", "")
+    # 优先使用 service_role key（绕过 RLS），如果没有则使用普通 key
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+    return url, key
 
 
 def convert_node_to_supabase_format(node: Dict, index: int = 0, region: str = 'mainland') -> Dict:
@@ -90,6 +94,7 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
     
     返回：是否上传成功
     """
+    SUPABASE_URL, SUPABASE_KEY = get_supabase_credentials()
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("⚠️ Supabase 凭证未配置，跳过上传")
         return False
@@ -168,6 +173,7 @@ async def check_supabase_connection() -> bool:
     """
     检查 Supabase 连接是否正常
     """
+    SUPABASE_URL, SUPABASE_KEY = get_supabase_credentials()
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("⚠️ Supabase 凭证未配置")
         return False

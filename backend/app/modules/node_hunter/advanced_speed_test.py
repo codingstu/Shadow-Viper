@@ -16,9 +16,22 @@ from email.utils import formatdate
 logger = logging.getLogger(__name__)
 
 # ==================== 配置区域 ====================
-ALIYUN_FC_URL = os.getenv("ALIYUN_FC_URL", "")
-CLOUDFLARE_WORKER_URL = os.getenv("CLOUDFLARE_WORKER_URL", "")
-ADVANCED_TEST_ENABLED = os.getenv("ADVANCED_TEST_ENABLED", "false").lower() == "true"
+def get_aliyun_url():
+    """运行时读取 Aliyun FC URL"""
+    return os.getenv("ALIYUN_FC_URL", "")
+
+def get_cloudflare_url():
+    """运行时读取 Cloudflare Worker URL"""
+    return os.getenv("CLOUDFLARE_WORKER_URL", "")
+
+def is_advanced_test_enabled():
+    """运行时读取高级测速开关（解决环境变量加载时序问题）"""
+    return os.getenv("ADVANCED_TEST_ENABLED", "false").lower() == "true"
+
+# 注：为了向后兼容，保留这些变量但标记为过时
+ALIYUN_FC_URL = get_aliyun_url()
+CLOUDFLARE_WORKER_URL = get_cloudflare_url()
+ADVANCED_TEST_ENABLED = is_advanced_test_enabled()
 
 
 def extract_host_port(node: Dict) -> tuple:
@@ -38,7 +51,8 @@ async def test_nodes_via_aliyun(nodes: List[Dict], mark_field: str = 'mainland')
     优化参数：针对大陆用户的延迟标准
     mark_field: 结果字段前缀 (默认 'mainland')
     """
-    if not ALIYUN_FC_URL:
+    aliyun_url = get_aliyun_url()
+    if not aliyun_url:
         logger.warning("⚠️ ALIYUN_FC_URL not configured, skipping mainland test")
         return []
 
@@ -80,7 +94,7 @@ async def test_nodes_via_aliyun(nodes: List[Dict], mark_field: str = 'mainland')
                 }
 
                 async with session.post(
-                    ALIYUN_FC_URL,
+                    aliyun_url,
                     json=request_payload,
                     headers=request_headers,
                     timeout=20
@@ -141,7 +155,8 @@ async def test_nodes_via_cloudflare(nodes: List[Dict], mark_field: str = 'overse
     优化参数：针对国外用户的延迟标准
     mark_field: 结果字段前缀 (默认 'overseas')
     """
-    if not CLOUDFLARE_WORKER_URL:
+    cloudflare_url = get_cloudflare_url()
+    if not cloudflare_url:
         logger.warning("⚠️ CLOUDFLARE_WORKER_URL not configured, skipping overseas test")
         return []
 
@@ -183,7 +198,7 @@ async def test_nodes_via_cloudflare(nodes: List[Dict], mark_field: str = 'overse
                 }
 
                 async with session.post(
-                    CLOUDFLARE_WORKER_URL,
+                    cloudflare_url,
                     json=request_payload,
                     headers=request_headers,
                     timeout=20
@@ -245,16 +260,20 @@ async def run_advanced_speed_test(nodes: List[Dict]) -> List[Dict]:
     输入：从基础测速得到的活跃节点
     输出：添加了 mainland_score/latency 和 overseas_score/latency 的节点列表
     """
-    if not ADVANCED_TEST_ENABLED:
+    # 运行时读取配置
+    if not is_advanced_test_enabled():
         logger.info("⏭️ 高级测速未启用，跳过（设置 ADVANCED_TEST_ENABLED=true 启用）")
         return nodes
+    
+    aliyun_url = get_aliyun_url()
+    cloudflare_url = get_cloudflare_url()
 
     logger.info(f"🚀 开始高级双地区测速（{len(nodes)} 个节点）...")
 
     all_tested = {}
     
     # 同时对所有节点进行大陆测速
-    if ALIYUN_FC_URL:
+    if aliyun_url:
         mainland_results = await test_nodes_via_aliyun(nodes, mark_field='mainland')
         for node in mainland_results:
             node_key = f"{node.get('host')}:{node.get('port')}"
@@ -263,7 +282,7 @@ async def run_advanced_speed_test(nodes: List[Dict]) -> List[Dict]:
             all_tested[node_key].update(node)
 
     # 同时对所有节点进行国外测速
-    if CLOUDFLARE_WORKER_URL:
+    if cloudflare_url:
         overseas_results = await test_nodes_via_cloudflare(nodes, mark_field='overseas')
         for node in overseas_results:
             node_key = f"{node.get('host')}:{node.get('port')}"

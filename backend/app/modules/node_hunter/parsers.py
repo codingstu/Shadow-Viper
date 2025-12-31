@@ -6,10 +6,11 @@ from typing import Optional, Dict, Any
 from urllib.parse import urlparse, parse_qs
 from urllib.parse import unquote
 
-COUNTRY_CODES = {"CN": "🇨🇳 中国(回国)", "US": "美国", "JP": "日本", "SG": "新加坡", "TW": "台湾", "HK": "香港", "KR": "韩国",
-                 "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "RU": "俄罗斯",
-                 "IN": "印度", "BR": "巴西", "TR": "土耳其", "NL": "荷兰", "SE": "瑞典", "NO": "挪威", "FI": "芬兰",
-                 "DK": "丹麦", "CH": "瑞士", "AT": "奥地利", "BE": "比利时"}
+# 🔥 修复：使用国家代码而不是中文名字，以保证前端能正确显示国旗
+COUNTRY_CODES = {"CN": "CN", "US": "US", "JP": "JP", "SG": "SG", "TW": "TW", "HK": "HK", "KR": "KR",
+                 "DE": "DE", "FR": "FR", "GB": "GB", "CA": "CA", "AU": "AU", "RU": "RU",
+                 "IN": "IN", "BR": "BR", "TR": "TR", "NL": "NL", "SE": "SE", "NO": "NO", "FI": "FI",
+                 "DK": "DK", "CH": "CH", "AT": "AT", "BE": "BE"}
 
 
 def clean_base64(b64_str: str) -> str:
@@ -36,17 +37,60 @@ def parse_vmess_link(url: str) -> Optional[Dict[str, Any]]:
         port = int(config.get('port', 443))
         uuid = config.get('id', '')
         if not host or not uuid or port <= 0: return None
-        country = "Unknown"
-        for code, country_name in COUNTRY_CODES.items():
-            if code in name.upper():
-                country = country_name
-                break
+        
+        # 改进的国家识别逻辑：使用更灵活的匹配
+        country = _extract_country_from_name(name)
+        
         return {"id": f"vmess_{host}_{port}", "name": name, "protocol": "vmess", "host": host, "port": port,
                 "uuid": uuid, "alterId": int(config.get('aid', 0)), "network": config.get('net', 'tcp'),
                 "type": config.get('type', 'none'), "tls": config.get('tls', 'none'), "sni": config.get('sni', ''),
                 "path": config.get('path', ''), "host_header": config.get('host', ''), "country": country}
     except:
         return None
+
+
+def _extract_country_from_name(name: str) -> str:
+    """从节点名称中提取国家代码"""
+    if not name:
+        return "UNK"
+    
+    upper_name = name.upper()
+    
+    # 精确匹配：整个单词匹配
+    exact_matches = {
+        "CA": ["CANADA"],
+        "US": ["USA", "UNITED STATES", "AMERICA"],
+        "JP": ["JAPAN", "TOKYO", "OSAKA"],
+        "GB": ["UNITED KINGDOM", "LONDON"],
+        "DE": ["GERMANY", "FRANKFURT"],
+        "FR": ["FRANCE", "PARIS"],
+        "SG": ["SINGAPORE"],
+        "HK": ["HONG KONG", "HONGKONG"],
+        "TW": ["TAIWAN", "TAIPEI"],
+        "IN": ["INDIA"],
+        "BR": ["BRAZIL"],
+        "RU": ["RUSSIA", "MOSCOW"],
+        "KR": ["KOREA", "SEOUL"],
+        "AU": ["AUSTRALIA", "SYDNEY"],
+        "NL": ["NETHERLANDS"],
+        "SE": ["SWEDEN"],
+        "CH": ["SWITZERLAND", "ZURICH"],
+        "FI": ["FINLAND"],
+        "NO": ["NORWAY"],
+        "TR": ["TURKEY"],
+    }
+    
+    for country_code, keywords in exact_matches.items():
+        for keyword in keywords:
+            # 检查关键词是否作为独立单词出现
+            if keyword in upper_name:
+                return country_code
+    
+    # 检查中文国家名称
+    if any(cn_name in name for cn_name in ["中国", "回国", "CN", "CHINA"]):
+        return "CN"
+    
+    return "UNK"
 
 
 def parse_vless_link(url: str) -> Optional[Dict[str, Any]]:
@@ -68,16 +112,9 @@ def parse_vless_link(url: str) -> Optional[Dict[str, Any]]:
         raw_name = parsed.fragment
         name = unquote(raw_name) if raw_name else "VLESS-Node"
 
-        country = "Unknown"
-        for code, country_name in COUNTRY_CODES.items():
-            if code in name.upper():
-                country = country_name
-                # ==================== 👇 新增逻辑 👇 ====================
-                # 如果发现名字里带 CN，但没带国旗，强制加在名字前面
-                if code == "CN" and "🇨🇳" not in name:
-                    name = f"🇨🇳 {name}"
-                # ==================== 👆 新增逻辑结束 👆 ====================
-                break
+        # 改进的国家识别逻辑
+        country = _extract_country_from_name(name)
+        
         return {"id": f"vless_{server}_{port}", "name": name, "protocol": "vless", "host": server, "port": port,
                 "uuid": uuid, "type": params.get('type', ['tcp'])[0], "security": params.get('security', ['none'])[0],
                 "path": params.get('path', [''])[0], "host_header": params.get('host', [''])[0],
@@ -101,11 +138,9 @@ def parse_trojan_link(url: str) -> Optional[Dict[str, Any]]:
         raw_name = parsed.fragment
         name = unquote(raw_name) if raw_name else "Trojan-Node"
 
-        country = "Unknown"
-        for code, country_name in COUNTRY_CODES.items():
-            if code in name.upper():
-                country = country_name
-                break
+        # 改进的国家识别逻辑
+        country = _extract_country_from_name(name)
+        
         return {"id": f"trojan_{server}_{port}", "name": name, "protocol": "trojan", "host": server, "port": port,
                 "password": password or "", "sni": params.get('sni', [''])[0], "type": params.get('type', ['tcp'])[0],
                 "country": country}
@@ -129,11 +164,9 @@ def parse_ss_link(url: str) -> Optional[Dict[str, Any]]:
         raw_name = urlparse(url).fragment
         name = unquote(raw_name) if raw_name else "SS-Node"
 
-        country = "Unknown"
-        for code, country_name in COUNTRY_CODES.items():
-            if code in name.upper():
-                country = country_name
-                break
+        # 改进的国家识别逻辑
+        country = _extract_country_from_name(name)
+        
         return {"id": f"ss_{server}_{port}", "name": name, "protocol": "ss", "host": server, "port": port,
                 "method": method, "password": password, "country": country}
     except:
@@ -158,11 +191,8 @@ def parse_standard_proxy_link(url: str) -> Optional[Dict[str, Any]]:
         user = parsed.username
         password = parsed.password
 
-        country = "Unknown"
-        for code, country_name in COUNTRY_CODES.items():
-            if code in name.upper():
-                country = country_name
-                break
+        # 改进的国家识别逻辑
+        country = _extract_country_from_name(name)
 
         return {
             "id": f"{parsed.scheme}_{server}_{port}",
