@@ -211,8 +211,18 @@ class NodeHunter:
                 seconds=30
             )
             
+            # 🔥 新增：Supabase 同步定时任务 (每10分钟执行一次)
+            # 将已验证的节点写入 Supabase，供 viper-node-store 读取
+            self.scheduler.add_job(
+                self._sync_to_supabase_task,
+                'interval',
+                minutes=10,
+                id='supabase_sync',
+                seconds=0
+            )
+            
             self.scheduler.start()
-            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步)", "SUCCESS")
+            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 10min/Supabase)", "SUCCESS")
             
             # 🔥 延迟 30 秒启动首次扫描，给后端足够时间启动 API 服务，防止前端连接超时
             async def delayed_scan_and_batch_test():
@@ -1119,6 +1129,48 @@ class NodeHunter:
                     self.add_log("⚠️ 高级测速结果同步失败", "WARNING")
         except Exception as e:
             self.add_log(f"❌ 高级测速异常: {e}", "ERROR")
+
+    async def _sync_to_supabase_task(self):
+        """
+        🔥 新增：定时同步任务 - 每10分钟执行
+        将已测速的节点上传到 Supabase，供 viper-node-store 读取
+        
+        特点：
+        1. 独立的定时任务，不依赖其他任务
+        2. 只同步已验证的活跃节点 (alive=True)
+        3. 自动去重（通过 host:port）
+        4. 包含大陆和海外的测速数据
+        """
+        try:
+            alive_nodes = [n for n in self.nodes if n.get('alive')]
+            
+            if not alive_nodes:
+                self.add_log("📭 无活跃节点，跳过 Supabase 同步", "DEBUG")
+                return
+            
+            # 去重：按 host:port 去重，保留最新的测试结果
+            seen = {}
+            for node in alive_nodes:
+                key = f"{node.get('host')}:{node.get('port')}"
+                if key not in seen or node.get('updated_at', '') > seen[key].get('updated_at', ''):
+                    seen[key] = node
+            
+            unique_nodes = list(seen.values())
+            
+            self.add_log(f"📤 Supabase 同步: {len(unique_nodes)} 个活跃节点（已去重）...", "INFO")
+            
+            # 上传到 Supabase
+            success = await upload_to_supabase(unique_nodes)
+            
+            if success:
+                self.last_supabase_sync_time = time.time()
+                self.add_log(f"✅ Supabase 同步完成！{len(unique_nodes)} 个节点已写入数据库", "SUCCESS")
+            else:
+                self.add_log("⚠️ Supabase 同步失败或未启用", "WARNING")
+                
+        except Exception as e:
+            self.add_log(f"❌ Supabase 同步异常: {type(e).__name__}: {e}", "ERROR")
+            logger.exception("Supabase 同步异常")
 
     async def _test_nodes_with_new_system(self, nodes_to_test: List[Dict]):
         """
