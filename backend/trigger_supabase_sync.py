@@ -15,6 +15,46 @@ from datetime import datetime
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 在导入之前，确保环境变量已设置
+# 如果 env 中没有配置，提示用户需要配置
+def check_and_setup_env():
+    """检查并提示用户设置 Supabase 环境变量"""
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if not supabase_url or not supabase_key:
+        print("\n" + "=" * 70)
+        print("⚠️  警告：Supabase 环境变量未配置")
+        print("=" * 70)
+        print("\n您可以通过以下方式设置环境变量：\n")
+        print("方式1 - 本地开发（设置 .env 文件或导出变量）：")
+        print('  export SUPABASE_URL="<your_supabase_url>"')
+        print('  export SUPABASE_KEY="<your_supabase_anon_key>"')
+        print("  python trigger_supabase_sync.py")
+        print("\n方式2 - GitHub Actions（已在仓库 Settings > Secrets 中配置）：")
+        print("  脚本会自动从 GitHub 环境变量中读取")
+        print("\n方式3 - Docker/CI环境：")
+        print("  通过 -e 参数传入：")
+        print('  docker run -e SUPABASE_URL="<url>" -e SUPABASE_KEY="<key>" ...')
+        print()
+        return False
+    
+    print(f"✅ Supabase 环境变量已配置")
+    print(f"   URL: {supabase_url[:40]}...")
+    print(f"   Key: {supabase_key[:30]}...")
+    
+    if supabase_service_key:
+        print(f"   Service Role Key: ✅ 已配置（可绕过 RLS）\n")
+    else:
+        print(f"   Service Role Key: ⚠️ 未配置（若需写入数据，请添加此密钥）\n")
+    
+    return True
+
+# 在导入之前检查
+if not check_and_setup_env():
+    sys.exit(1)
+
 from app.modules.node_hunter.supabase_helper import upload_to_supabase
 
 async def main():
