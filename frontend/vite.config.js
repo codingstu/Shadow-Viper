@@ -9,7 +9,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8001',  // ✅ 改为 8001，与 main.py 配置一致
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }

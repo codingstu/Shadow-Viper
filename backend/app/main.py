@@ -228,3 +228,68 @@ async def api_get_nodes(
     
     return result
 
+
+# ==========================================
+# 🔥 新增：数据同步端点 - 允许前端触发数据同步
+# ==========================================
+@app.post("/api/sync")
+async def sync_data_to_supabase():
+    """
+    触发数据同步到 Supabase 的端点
+    用于前端 [同步数据] 按钮
+    """
+    import subprocess
+    import os
+    import json
+    
+    try:
+        print("\n" + "="*70)
+        print("📤 收到前端同步请求，开始同步数据到 Supabase...")
+        print("="*70)
+        
+        # 获取当前项目路径
+        viper_store_path = "/Users/ikun/study/Learning/viper-node-store"
+        script_path = os.path.join(viper_store_path, "sync_nodes_local.py")
+        
+        if not os.path.exists(script_path):
+            return {
+                "success": False,
+                "message": f"同步脚本不存在: {script_path}",
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }
+        
+        # 运行同步脚本
+        result = subprocess.run(
+            ["python", script_path],
+            capture_output=True,
+            text=True,
+            cwd=viper_store_path,
+            timeout=120
+        )
+        
+        output = result.stdout + result.stderr
+        
+        print(output)
+        print("="*70)
+        
+        return {
+            "success": result.returncode == 0,
+            "message": "数据同步完成" if result.returncode == 0 else "数据同步失败",
+            "output": output[-500:] if len(output) > 500 else output,  # 返回最后 500 字符
+            "timestamp": __import__('datetime').datetime.now().isoformat()
+        }
+        
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "message": "同步超时（>120秒）",
+            "timestamp": __import__('datetime').datetime.now().isoformat()
+        }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ 同步出错: {error_msg}")
+        return {
+            "success": False,
+            "message": f"同步出错: {error_msg}",
+            "timestamp": __import__('datetime').datetime.now().isoformat()
+        }

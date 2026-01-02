@@ -27,13 +27,13 @@
 
 ```bash
 # 直接触发检测
-curl -X POST http://127.0.0.1:8000/nodes/trigger
+curl -X POST ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/trigger
 
 # 查看进度
 tail -f /tmp/uvicorn_new.log | grep -E '✅|❌|🧪|📊'
 
 # 查看结果
-curl http://127.0.0.1:8000/nodes/verified
+curl ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/verified
 ```
 
 ### 方案 B: 本地后端 + 阿里云 FC (国内用户推荐)
@@ -58,7 +58,7 @@ export ALIYUN_FC_URL=https://xxxx.cn-region.fc.aliyuncs.com/...
 # (如果在开发模式，重新启动即可)
 
 # 4️⃣ 触发检测
-curl -X POST http://127.0.0.1:8000/nodes/trigger
+curl -X POST ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/trigger
 ```
 
 ### 方案 C: 完整全球方案 (全球最优)
@@ -86,7 +86,7 @@ export CF_WORKER_URL=https://xxxx.workers.dev
 # 4️⃣ 重启后端服务
 
 # 5️⃣ 触发检测
-curl -X POST http://127.0.0.1:8000/nodes/trigger
+curl -X POST ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/trigger
 ```
 
 ## 📝 详细操作步骤
@@ -94,7 +94,7 @@ curl -X POST http://127.0.0.1:8000/nodes/trigger
 ### 1️⃣ 验证后端状态
 
 ```bash
-curl http://127.0.0.1:8000/api/status
+curl ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/api/status
 # 预期: {"status": "running"}
 ```
 
@@ -111,7 +111,7 @@ env | grep -E 'ALIYUN_FC_URL|CF_WORKER_URL|CLOUD_DETECTION_ENABLED'
 ### 3️⃣ 触发检测
 
 ```bash
-curl -X POST http://127.0.0.1:8000/nodes/trigger
+curl -X POST ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/trigger
 
 # 预期响应:
 # {"status": "started", "message": "后台扫描已启动..."}
@@ -142,7 +142,7 @@ tail -f /tmp/uvicorn_new.log | grep -E '☁️|🇨🇳|🌍'
 
 ```bash
 # 获取已验证的节点列表
-curl http://127.0.0.1:8000/nodes/verified
+curl ${SPIDERFLOW_PUBLIC_URL:-http://localhost:8001}/nodes/verified
 
 # 预期响应包含:
 {

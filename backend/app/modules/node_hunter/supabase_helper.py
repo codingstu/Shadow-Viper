@@ -16,6 +16,14 @@ def get_supabase_credentials():
     url = os.getenv("SUPABASE_URL", "")
     # 优先使用 service_role key（绕过 RLS），如果没有则使用普通 key
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+    
+    # 调试日志
+    if not url or not key:
+        logger.debug(f"🔍 凭证读取状态:")
+        logger.debug(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'}")
+        logger.debug(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
+        logger.debug(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+    
     return url, key
 
 
@@ -110,10 +118,23 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
         
         for i, node in enumerate(nodes):
             try:
+                # 🔥 关键：生成或提取 share_link
+                share_link = node.get('share_link') or node.get('link', '')
+                
+                # 如果没有 share_link，尝试从 config_generator 生成
+                if not share_link:
+                    try:
+                        from .config_generator import generate_node_share_link
+                        share_link = generate_node_share_link(node)
+                    except Exception as e:
+                        logger.debug(f"⚠️ 生成 share_link 失败: {e}")
+                        share_link = ''
+                
                 # 将节点转换为 Supabase 格式（包含两个地区的数据）
                 converted = {
                     "id": f"{node.get('host')}:{node.get('port')}",
                     "content": node,  # 完整的节点数据
+                    "link": share_link,  # 🔥 添加 link 字段！
                     "is_free": i < 20,  # 前 20 个标记为免费
                     "mainland_score": int(node.get('mainland_score', 0)),
                     "mainland_latency": int(node.get('mainland_latency', 9999)),

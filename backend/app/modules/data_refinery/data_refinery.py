@@ -233,7 +233,11 @@ class RefineryEngine:
         filepath = os.path.abspath(filename)
         ctx.df.to_csv(filepath, index=False, encoding="utf-8-sig")
 
-        yield json.dumps({"step": "done", "download_url": f"http://127.0.0.1:8000/download/{filename}", "final_count": len(ctx.df), "msg": "🎉 处理完毕"}) + "\n"
+        # 使用环境变量以支持线上部署：优先使用 SPIDERFLOW_PUBLIC_URL，其次 APP_PUBLIC_URL，最后回退到本地开发地址
+        download_base = os.environ.get("SPIDERFLOW_PUBLIC_URL") or os.environ.get("APP_PUBLIC_URL") or "http://localhost:8001"
+        download_url = f"{download_base.rstrip('/')}/download/{filename}"
+
+        yield json.dumps({"step": "done", "download_url": download_url, "final_count": len(ctx.df), "msg": "🎉 处理完毕"}) + "\n"
 
 
 # ==================== API ====================

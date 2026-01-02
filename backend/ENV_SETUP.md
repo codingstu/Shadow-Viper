@@ -58,6 +58,9 @@ python trigger_supabase_sync.py
 ```bash
 export SUPABASE_URL="https://your-project.supabase.co"
 export SUPABASE_KEY="your_anon_public_key"
+
+# 生产环境请设置服务对外访问地址（用于生成外部可访问的下载链接等）
+# 例如: export SPIDERFLOW_PUBLIC_URL="https://api.example.com"
 python trigger_supabase_sync.py
 ```
 

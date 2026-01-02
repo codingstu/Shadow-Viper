@@ -211,18 +211,18 @@ class NodeHunter:
                 seconds=30
             )
             
-            # 🔥 新增：Supabase 同步定时任务 (每10分钟执行一次)
+            # 🔥 新增：Supabase 同步定时任务 (每3分钟执行一次)
             # 将已验证的节点写入 Supabase，供 viper-node-store 读取
             self.scheduler.add_job(
                 self._sync_to_supabase_task,
                 'interval',
-                minutes=10,
+                minutes=3,
                 id='supabase_sync',
                 seconds=0
             )
             
             self.scheduler.start()
-            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 10min/Supabase)", "SUCCESS")
+            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 3min/Supabase)", "SUCCESS")
             
             # 🔥 延迟 30 秒启动首次扫描，给后端足够时间启动 API 服务，防止前端连接超时
             async def delayed_scan_and_batch_test():
@@ -1349,6 +1349,13 @@ class NodeHunter:
                         orig_node['overseas_score'] = int(orig_node.get('speed', 0))
                         orig_node['overseas_latency'] = latency
 
+                        # 🔥 添加 share_link（用于viper-node-store显示QR码）
+                        if not orig_node.get('share_link'):
+                            try:
+                                orig_node['share_link'] = generate_node_share_link(orig_node)
+                            except Exception as e:
+                                logger.debug(f"生成share_link失败: {e}")
+
                         # 🔥 优化：每检测到1个可用节点就输出，让用户看到实时反馈
                         self.add_log(
                             f"✅ Clash✓ [{idx+1}/{total}] {orig_node.get('host')}:{orig_node.get('port')} "
@@ -1458,6 +1465,13 @@ class NodeHunter:
                         node['mainland_latency'] = latency
                         node['overseas_score'] = int(node.get('speed', 0))
                         node['overseas_latency'] = latency
+                        
+                        # 🔥 添加 share_link（用于viper-node-store显示QR码）
+                        if not node.get('share_link'):
+                            try:
+                                node['share_link'] = generate_node_share_link(node)
+                            except Exception as e:
+                                logger.debug(f"生成share_link失败: {e}")
                         
                         # 🔥 优化：每检测到1个可用节点就输出，让用户看到实时反馈
                         self.add_log(
