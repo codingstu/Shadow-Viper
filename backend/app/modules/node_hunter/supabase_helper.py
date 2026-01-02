@@ -8,8 +8,12 @@ import os
 import logging
 from typing import List, Dict
 from datetime import datetime
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+# Ensure .env is loaded even when this module is imported from background workers
+load_dotenv()
 
 def get_supabase_credentials():
     """在运行时读取 Supabase 凭证，优先使用 service_role key 以绕过 RLS"""
