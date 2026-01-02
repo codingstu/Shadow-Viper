@@ -42,7 +42,7 @@ const handleSync = async () => {
   lastSyncSuccess.value = false
 
   try {
-    const response = await fetch('http://localhost:8001/api/sync', {
+    const response = await fetch('/api/sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
