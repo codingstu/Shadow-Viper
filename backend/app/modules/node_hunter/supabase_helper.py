@@ -21,12 +21,14 @@ def get_supabase_credentials():
     # 优先使用 service_role key（绕过 RLS），如果没有则使用普通 key
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
     
-    # 调试日志
+    # 关键信息日志 - 用 INFO 级别确保在线上可见
+    logger.info(f"🔍 Supabase 凭证读取状态:")
+    logger.info(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'} {url[:40] + '...' if url else ''}")
+    logger.info(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
+    logger.info(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+    
     if not url or not key:
-        logger.debug(f"🔍 凭证读取状态:")
-        logger.debug(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'}")
-        logger.debug(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
-        logger.debug(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+        logger.error(f"❌ Supabase 凭证不完整，无法上传数据！")
     
     return url, key
 
