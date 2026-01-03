@@ -365,6 +365,84 @@ class NodeHunter:
             logger.error(f"保存用户源失败: {e}")
 
     def _load_nodes_from_file(self):
+        """
+        🔥 优化：优先从 Supabase 数据库加载节点，失败时才从本地缓存加载
+        """
+        # 先尝试从 Supabase 加载
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果在异步环境中，创建任务
+                asyncio.create_task(self._load_nodes_from_supabase())
+                return
+            else:
+                # 同步环境，直接运行
+                loop.run_until_complete(self._load_nodes_from_supabase())
+                if self.nodes:
+                    return  # Supabase 加载成功，不再从文件加载
+        except Exception as e:
+            self.add_log(f"⚠️ 从 Supabase 加载失败，尝试本地缓存: {e}", "WARNING")
+        
+        # Supabase 失败，从本地文件加载
+        self._load_nodes_from_local_file()
+    
+    async def _load_nodes_from_supabase(self):
+        """从 Supabase 数据库加载节点"""
+        import os
+        try:
+            url = os.getenv("SUPABASE_URL", "")
+            key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+            
+            if not url or not key:
+                self.add_log("⚠️ Supabase 凭证未配置，将从本地缓存加载", "WARNING")
+                self._load_nodes_from_local_file()
+                return
+            
+            from supabase import create_client
+            supabase = create_client(url, key)
+            
+            # 查询最新的节点数据，按 speed 降序，限制 200 条
+            response = supabase.table("nodes").select("*").order("speed", desc=True).limit(200).execute()
+            
+            if response.data:
+                loaded_nodes = []
+                for row in response.data:
+                    # 从 content 字段提取完整节点数据
+                    node = row.get('content', {})
+                    if isinstance(node, dict) and node.get('host'):
+                        # 补充数据库中的评分数据
+                        node['mainland_score'] = row.get('mainland_score', 0)
+                        node['overseas_score'] = row.get('overseas_score', 0)
+                        node['mainland_latency'] = row.get('mainland_latency', 9999)
+                        node['overseas_latency'] = row.get('overseas_latency', 9999)
+                        node['alive'] = True  # 数据库中的都是验证过的活跃节点
+                        
+                        # 应用国家识别
+                        country = self._normalize_country(node.get('country', 'UNK'))
+                        if country == 'UNK':
+                            country = self._guess_country_from_name(node.get('name', ''))
+                        node['country'] = country
+                        
+                        loaded_nodes.append(node)
+                
+                if loaded_nodes:
+                    self.nodes = loaded_nodes
+                    self.add_log(f"☁️ 从 Supabase 加载了 {len(loaded_nodes)} 个节点", "SUCCESS")
+                    return
+            
+            self.add_log("⚠️ Supabase 中无节点数据，将从本地缓存加载", "WARNING")
+            self._load_nodes_from_local_file()
+            
+        except ImportError:
+            self.add_log("⚠️ supabase 库未安装，将从本地缓存加载", "WARNING")
+            self._load_nodes_from_local_file()
+        except Exception as e:
+            self.add_log(f"⚠️ Supabase 查询失败: {e}，将从本地缓存加载", "WARNING")
+            self._load_nodes_from_local_file()
+    
+    def _load_nodes_from_local_file(self):
+        """从本地 JSON 文件加载节点（备用方案）"""
         if os.path.exists(VERIFIED_NODES_FILE):
             try:
                 with open(VERIFIED_NODES_FILE, "r") as f:
@@ -381,9 +459,9 @@ class NodeHunter:
                         
                         node['country'] = country
                     self.nodes = loaded_nodes
-                self.add_log(f"📥 从缓存加载了 {len(loaded_nodes)} 个节点，已应用国家识别", "SUCCESS")
+                self.add_log(f"📥 从本地缓存加载了 {len(loaded_nodes)} 个节点", "SUCCESS")
             except Exception as e:
-                self.add_log(f"⚠️ 加载缓存节点失败: {e}", "WARNING")
+                self.add_log(f"⚠️ 加载本地缓存失败: {e}", "WARNING")
 
     def _save_nodes_to_file(self):
         try:
