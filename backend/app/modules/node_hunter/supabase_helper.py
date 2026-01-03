@@ -8,12 +8,27 @@ import os
 import logging
 from typing import List, Dict
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Ensure .env is loaded even when this module is imported from background workers
-load_dotenv()
+# 🔥 关键：使用绝对路径加载 .env 文件
+# 获取当前文件所在目录，向上找到 backend 目录
+_current_file = Path(__file__).resolve()
+_backend_dir = _current_file.parent.parent.parent.parent  # supabase_helper.py -> node_hunter -> modules -> app -> backend
+_env_path = _backend_dir / ".env"
+
+logger.warning(f"🔍 尝试加载 .env 文件: {_env_path}")
+logger.warning(f"   文件是否存在: {_env_path.exists()}")
+
+if _env_path.exists():
+    load_dotenv(_env_path)
+    logger.warning(f"✅ 已加载 .env 文件: {_env_path}")
+else:
+    # 尝试从当前工作目录加载
+    load_dotenv()
+    logger.warning(f"⚠️ .env 文件不存在于 {_env_path}，尝试从当前工作目录加载")
 
 def get_supabase_credentials():
     """在运行时读取 Supabase 凭证，优先使用 service_role key 以绕过 RLS"""
