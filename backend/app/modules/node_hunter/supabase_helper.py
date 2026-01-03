@@ -36,14 +36,21 @@ def get_supabase_credentials():
     # 优先使用 service_role key（绕过 RLS），如果没有则使用普通 key
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
     
-    # 用 WARNING 级别确保在线上一定能看到
-    logger.warning(f"🔍 Supabase 凭证读取状态:")
-    logger.warning(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'} {url[:40] + '...' if url else ''}")
-    logger.warning(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
-    logger.warning(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+    # 🔥 增强调试：打印所有相关环境变量的状态
+    logger.warning("=" * 50)
+    logger.warning(f"🔍 Supabase 凭证诊断:")
+    logger.warning(f"   运行环境: {os.getenv('WEBSITE_SITE_NAME', '本地开发')}")  # Azure 特有变量
+    logger.warning(f"   SUPABASE_URL: {'✅ ' + url[:50] + '...' if url else '❌ 空'}")
+    logger.warning(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置 (长度=' + str(len(os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''))) + ')' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
+    logger.warning(f"   SUPABASE_KEY: {'✅ 已设置 (长度=' + str(len(os.getenv('SUPABASE_KEY', ''))) + ')' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+    logger.warning(f"   最终使用的 KEY 长度: {len(key) if key else 0}")
+    logger.warning("=" * 50)
     
     if not url or not key:
         logger.error(f"❌ Supabase 凭证不完整，无法上传数据！")
+        # 🔥 打印所有环境变量名（不打印值，安全考虑）
+        all_env_keys = [k for k in os.environ.keys() if 'SUPA' in k.upper() or 'KEY' in k.upper() or 'URL' in k.upper()]
+        logger.error(f"   相关环境变量: {all_env_keys}")
     
     return url, key
 

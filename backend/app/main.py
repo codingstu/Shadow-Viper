@@ -101,6 +101,45 @@ async def read_status():
     return {"message": "SpiderFlow API", "status": "running"}
 
 
+# ==========================================
+# 🔥 诊断端点：检查 Supabase 环境变量配置
+# ==========================================
+@app.get("/api/debug/supabase")
+async def debug_supabase_config():
+    """
+    诊断 Supabase 配置状态（不暴露敏感信息）
+    用于排查线上环境变量问题
+    """
+    import os
+    
+    url = os.getenv("SUPABASE_URL", "")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    anon_key = os.getenv("SUPABASE_KEY", "")
+    
+    # Azure 特有环境变量
+    is_azure = bool(os.getenv("WEBSITE_SITE_NAME"))
+    azure_env = os.getenv("WEBSITE_SITE_NAME", "N/A")
+    
+    return {
+        "environment": "Azure" if is_azure else "Local",
+        "azure_site_name": azure_env,
+        "supabase_url": {
+            "configured": bool(url),
+            "preview": url[:40] + "..." if url else None
+        },
+        "supabase_service_role_key": {
+            "configured": bool(service_key),
+            "length": len(service_key) if service_key else 0
+        },
+        "supabase_key": {
+            "configured": bool(anon_key),
+            "length": len(anon_key) if anon_key else 0
+        },
+        "all_env_with_supa": [k for k in os.environ.keys() if 'SUPA' in k.upper()],
+        "recommendation": "OK" if (url and (service_key or anon_key)) else "请在 Azure App Service > 配置 > 应用程序设置中添加 SUPABASE_URL 和 SUPABASE_KEY"
+    }
+
+
 app.include_router(proxy_router)
 app.include_router(node_router)
 app.include_router(crawler_router)

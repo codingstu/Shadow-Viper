@@ -1159,6 +1159,16 @@ class NodeHunter:
             
             self.add_log(f"📤 Supabase 同步: {len(unique_nodes)} 个活跃节点（已去重）...", "INFO")
             
+            # 🔥 增强：先检查凭证状态
+            import os
+            url = os.getenv("SUPABASE_URL", "")
+            key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+            self.add_log(f"🔍 环境变量检查: URL={'✅' if url else '❌'}, KEY={'✅' if key else '❌'}", "INFO")
+            
+            if not url or not key:
+                self.add_log(f"❌ Supabase 环境变量未配置！请检查 SUPABASE_URL 和 SUPABASE_KEY", "ERROR")
+                return
+            
             # 上传到 Supabase
             success = await upload_to_supabase(unique_nodes)
             
