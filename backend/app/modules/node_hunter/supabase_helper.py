@@ -21,11 +21,11 @@ def get_supabase_credentials():
     # 优先使用 service_role key（绕过 RLS），如果没有则使用普通 key
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
     
-    # 关键信息日志 - 用 INFO 级别确保在线上可见
-    logger.info(f"🔍 Supabase 凭证读取状态:")
-    logger.info(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'} {url[:40] + '...' if url else ''}")
-    logger.info(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
-    logger.info(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
+    # 用 WARNING 级别确保在线上一定能看到
+    logger.warning(f"🔍 Supabase 凭证读取状态:")
+    logger.warning(f"   SUPABASE_URL: {'✅ 已设置' if url else '❌ 未设置'} {url[:40] + '...' if url else ''}")
+    logger.warning(f"   SUPABASE_SERVICE_ROLE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '❌ 未设置'}")
+    logger.warning(f"   SUPABASE_KEY: {'✅ 已设置' if os.getenv('SUPABASE_KEY') else '❌ 未设置'}")
     
     if not url or not key:
         logger.error(f"❌ Supabase 凭证不完整，无法上传数据！")
@@ -108,8 +108,9 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
     
     返回：是否上传成功
     """
-    logger.info("=" * 60)
-    logger.info("🚀 开始执行 upload_to_supabase()")
+    logger.error("=" * 60)
+    logger.error("🚀 开始执行 upload_to_supabase()")
+    logger.error(f"   输入节点数: {len(nodes)}")
     
     SUPABASE_URL, SUPABASE_KEY = get_supabase_credentials()
     
@@ -122,7 +123,7 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
     try:
         from supabase import create_client
         
-        logger.info(f"📤 初始化 Supabase 连接: {SUPABASE_URL[:30]}...")
+        logger.error(f"📤 初始化 Supabase 连接: {SUPABASE_URL[:30]}...")
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         
         # 转换节点格式（单个记录包含两个地区数据）
@@ -162,10 +163,10 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                 continue
         
         if not all_data:
-            logger.warning("⚠️ 没有有效节点可上传")
+            logger.error("❌ 没有有效节点可上传 (all_data 为空)")
             return False
         
-        logger.info(f"📋 准备上传 {len(all_data)} 条节点记录（每条包含大陆和海外测试数据）...")
+        logger.error(f"📋 准备上传 {len(all_data)} 条节点记录...")
         
         # 分批上传（避免单次请求过大）
         batch_size = 50
