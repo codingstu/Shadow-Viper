@@ -108,9 +108,15 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
     
     返回：是否上传成功
     """
+    logger.info("=" * 60)
+    logger.info("🚀 开始执行 upload_to_supabase()")
+    
     SUPABASE_URL, SUPABASE_KEY = get_supabase_credentials()
+    
     if not SUPABASE_URL or not SUPABASE_KEY:
-        logger.warning("⚠️ Supabase 凭证未配置，跳过上传")
+        logger.error("❌ Supabase 凭证未配置，无法上传！")
+        logger.error(f"   SUPABASE_URL: {SUPABASE_URL}")
+        logger.error(f"   SUPABASE_KEY 长度: {len(SUPABASE_KEY) if SUPABASE_KEY else 0}")
         return False
 
     try:
@@ -188,12 +194,19 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
             logger.error("❌ Supabase 上传失败: 没有数据成功上传")
             return False
             
-    except ImportError:
-        logger.error("❌ supabase 库未安装，请运行: pip install supabase")
+    except ImportError as ie:
+        logger.error("❌ supabase 库未安装！")
+        logger.error(f"   错误: {ie}")
+        logger.error("   请运行: pip install supabase")
         return False
     except Exception as e:
-        logger.error(f"❌ Supabase 上传异常: {type(e).__name__}: {e}")
+        logger.error(f"❌ Supabase 上传异常: {type(e).__name__}")
+        logger.error(f"   错误详情: {str(e)}")
+        import traceback
+        logger.error(f"   堆栈跟踪:\n{traceback.format_exc()}")
         return False
+    finally:
+        logger.info("=" * 60)
 
 
 async def check_supabase_connection() -> bool:
