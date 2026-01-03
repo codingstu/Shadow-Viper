@@ -1169,14 +1169,20 @@ class NodeHunter:
                 self.add_log(f"❌ Supabase 环境变量未配置！请检查 SUPABASE_URL 和 SUPABASE_KEY", "ERROR")
                 return
             
-            # 上传到 Supabase
-            success = await upload_to_supabase(unique_nodes)
+            # 上传到 Supabase (返回 tuple: (success, message/count))
+            result = await upload_to_supabase(unique_nodes)
+            
+            # 兼容旧版返回值 (bool) 和新版 (tuple)
+            if isinstance(result, tuple):
+                success, detail = result
+            else:
+                success, detail = result, ""
             
             if success:
                 self.last_supabase_sync_time = time.time()
-                self.add_log(f"✅ Supabase 同步完成！{len(unique_nodes)} 个节点已写入数据库", "SUCCESS")
+                self.add_log(f"✅ Supabase 同步完成！{detail} 个节点已写入数据库", "SUCCESS")
             else:
-                self.add_log("⚠️ Supabase 同步失败或未启用", "WARNING")
+                self.add_log(f"⚠️ Supabase 同步失败: {detail}", "WARNING")
                 
         except Exception as e:
             self.add_log(f"❌ Supabase 同步异常: {type(e).__name__}: {e}", "ERROR")

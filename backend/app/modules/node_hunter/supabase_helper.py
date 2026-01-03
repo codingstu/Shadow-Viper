@@ -123,12 +123,12 @@ def convert_node_to_supabase_format(node: Dict, index: int = 0, region: str = 'm
     }
 
 
-async def upload_to_supabase(nodes: List[Dict]) -> bool:
+async def upload_to_supabase(nodes: List[Dict]) -> tuple:
     """
     将节点数据上传到 Supabase
     每个节点只上传一条记录，包含 mainland_score/mainland_latency 和 overseas_score/overseas_latency
     
-    返回：是否上传成功
+    返回：(是否成功, 错误消息或成功数量)
     """
     logger.error("=" * 60)
     logger.error("🚀 开始执行 upload_to_supabase()")
@@ -137,10 +137,9 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
     SUPABASE_URL, SUPABASE_KEY = get_supabase_credentials()
     
     if not SUPABASE_URL or not SUPABASE_KEY:
-        logger.error("❌ Supabase 凭证未配置，无法上传！")
-        logger.error(f"   SUPABASE_URL: {SUPABASE_URL}")
-        logger.error(f"   SUPABASE_KEY 长度: {len(SUPABASE_KEY) if SUPABASE_KEY else 0}")
-        return False
+        msg = f"凭证未配置: URL={bool(SUPABASE_URL)}, KEY长度={len(SUPABASE_KEY) if SUPABASE_KEY else 0}"
+        logger.error(f"❌ {msg}")
+        return False, msg
 
     try:
         from supabase import create_client
@@ -196,16 +195,16 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                 continue
         
         if not all_data:
-            logger.error(f"❌ 没有有效节点可上传 (all_data 为空)")
-            logger.error(f"   成功转换: 0/{len(nodes)}")
-            logger.error(f"   失败转换: {failed_count}/{len(nodes)}")
-            return False
+            msg = f"没有有效节点可上传 (转换失败: {failed_count}/{len(nodes)})"
+            logger.error(f"❌ {msg}")
+            return False, msg
         
         logger.error(f"📋 准备上传 {len(all_data)} 条节点记录... (成功转换: {len(all_data)}/{len(nodes)})")
         
         # 分批上传（避免单次请求过大）
         batch_size = 50
         total_uploaded = 0
+        last_error = None
         
         for i in range(0, len(all_data), batch_size):
             batch = all_data[i:i + batch_size]
@@ -219,28 +218,29 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                 logger.info(f"   ✅ 批次成功: {len(batch)} 条数据")
                 
             except Exception as batch_error:
+                last_error = str(batch_error)
                 logger.error(f"   ❌ 批次失败: {batch_error}")
                 # 继续处理下一批，不中断整个流程
                 continue
         
         if total_uploaded > 0:
             logger.info(f"✅ Supabase 上传完成: 共 {total_uploaded} / {len(all_data)} 条数据")
-            return True
+            return True, total_uploaded
         else:
-            logger.error("❌ Supabase 上传失败: 没有数据成功上传")
-            return False
+            msg = f"所有批次上传失败: {last_error}"
+            logger.error(f"❌ {msg}")
+            return False, msg
             
     except ImportError as ie:
-        logger.error("❌ supabase 库未安装！")
-        logger.error(f"   错误: {ie}")
-        logger.error("   请运行: pip install supabase")
-        return False
+        msg = f"supabase 库未安装: {ie}"
+        logger.error(f"❌ {msg}")
+        return False, msg
     except Exception as e:
-        logger.error(f"❌ Supabase 上传异常: {type(e).__name__}")
-        logger.error(f"   错误详情: {str(e)}")
         import traceback
+        msg = f"{type(e).__name__}: {str(e)}"
+        logger.error(f"❌ Supabase 上传异常: {msg}")
         logger.error(f"   堆栈跟踪:\n{traceback.format_exc()}")
-        return False
+        return False, msg
     finally:
         logger.info("=" * 60)
 

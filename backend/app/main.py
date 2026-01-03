@@ -325,22 +325,28 @@ async def sync_data_to_supabase():
         unique_nodes = list(seen.values())
         print(f"📊 准备同步: {len(unique_nodes)} 个节点 (去重后)")
         
-        # 4. 执行上传
-        success = await upload_to_supabase(unique_nodes)
+        # 4. 执行上传 (返回 tuple: (success, detail))
+        result = await upload_to_supabase(unique_nodes)
+        
+        # 兼容旧版返回值
+        if isinstance(result, tuple):
+            success, detail = result
+        else:
+            success, detail = result, ""
         
         print("="*70)
         
         if success:
-            msg = f"同步成功！已上传 {len(unique_nodes)} 个节点到 Supabase"
+            msg = f"同步成功！已上传 {detail} 个节点到 Supabase"
             print(f"✅ {msg}")
             return {
                 "success": True,
                 "message": msg,
-                "node_count": len(unique_nodes),
+                "node_count": detail if isinstance(detail, int) else len(unique_nodes),
                 "timestamp": datetime.now().isoformat()
             }
         else:
-            msg = "同步失败，请检查后端日志获取详细错误"
+            msg = f"同步失败: {detail}"
             print(f"❌ {msg}")
             return {
                 "success": False,
