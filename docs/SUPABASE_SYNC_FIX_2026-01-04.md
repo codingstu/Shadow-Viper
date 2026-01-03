@@ -37,6 +37,17 @@ Azure 部署时可能未正确安装 `supabase` 依赖包。
 
 原逻辑从 `verified_nodes.json` 加载缓存节点，这在云端部署时不合理。
 
+### 问题5：异步加载 Supabase 数据的 Bug
+
+**原代码**：
+```python
+if loop.is_running():
+    asyncio.create_task(self._load_nodes_from_supabase())
+    return  # ← 直接 return，没等任务完成！
+```
+
+**问题**：`create_task()` 只是创建任务但不等待完成，导致实际上还是从本地文件加载。
+
 ---
 
 ## 修复方案
@@ -126,30 +137,114 @@ async def debug_supabase_config():
 </n-button>
 ```
 
-### 修复5：启动时优先从 Supabase 加载节点
+```javascript
+async function syncToSupabase() {
+  syncing.value = true;
+  addLog('☁️ 正在同步数据到 Supabase...');
+  try {
+    const { data } = await api.post('/api/sync');
+    if (data.success) {
+      addLog(`✅ ${data.message}`);
+    } else {
+      addLog(`⚠️ 同步失败: ${data.message}`);
+    }
+  } catch (error) {
+    addLog(`❌ 同步出错: ${error.message}`);
+  } finally {
+    syncing.value = false;
+  }
+}
+```
+
+### 修复5：启动时后台加载 Supabase 节点（核心修复）
 
 **文件**：`backend/app/modules/node_hunter/node_hunter.py`
 
-**修改**：新增 `_load_nodes_from_supabase()` 方法，启动时优先从数据库加载。
+**问题**：原代码 `asyncio.create_task()` 后直接 `return`，导致实际上没有从 Supabase 加载数据。
+
+**修复策略**：
+1. 先从本地文件快速加载（保证启动速度）
+2. 5 秒后后台从 Supabase 加载并**合并**到内存
 
 ```python
 def _load_nodes_from_file(self):
-    """优先从 Supabase 加载，失败时从本地缓存加载"""
-    try:
-        await self._load_nodes_from_supabase()
-        if self.nodes:
-            return  # 成功
-    except:
-        pass
-    # 失败，从本地文件加载
+    """启动时先从本地缓存快速加载，然后在后台从 Supabase 更新"""
+    # 先从本地文件快速加载（保证启动速度）
     self._load_nodes_from_local_file()
+    
+    # 然后安排一个后台任务从 Supabase 更新
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(self._load_and_merge_from_supabase())
+    except Exception as e:
+        self.add_log(f"⚠️ 设置 Supabase 加载任务失败: {e}", "WARNING")
 
-async def _load_nodes_from_supabase(self):
-    """从 Supabase 加载最新的 200 个高评分节点"""
+async def _load_and_merge_from_supabase(self):
+    """后台从 Supabase 加载节点并合并到内存"""
+    await asyncio.sleep(5)  # 等待 5 秒，让系统完全启动
+    
+    # 查询数据库
     response = supabase.table("nodes").select("*").order("speed", desc=True).limit(200).execute()
-    # ...
-    self.add_log(f"☁️ 从 Supabase 加载了 {len(loaded_nodes)} 个节点", "SUCCESS")
+    
+    # 合并策略：数据库节点优先，本地独有的也保留
+    # 按 host:port 去重
+    for node in loaded_nodes:
+        key = f"{node.get('host')}:{node.get('port')}"
+        if key not in db_keys:
+            db_keys.add(key)
+            merged_nodes.append(node)
+    
+    self.add_log(f"☁️ 从 Supabase 加载了 {len(loaded_nodes)} 个节点，合并后共 {len(self.nodes)} 个", "SUCCESS")
 ```
+
+**启动日志效果**：
+```
+[18:42:20] 📥 从本地缓存加载了 73 个节点
+[18:42:25] ☁️ 正在从 Supabase 数据库加载节点...
+[18:42:26] ☁️ 从 Supabase 加载了 103 个节点，合并后共 108 个 (原 73 个)
+```
+
+---
+
+## Supabase 数据库结构
+
+### nodes 表结构
+
+```sql
+create table public.nodes (
+  id text not null,                              -- 主键：host:port
+  content jsonb null,                            -- 完整节点数据
+  is_free boolean null default false,
+  speed integer null,                            -- 综合评分
+  updated_at timestamp with time zone null default now(),
+  latency bigint null,                           -- 延迟 (ms)
+  mainland_score integer null default 0,         -- 大陆评分
+  mainland_latency integer null default 0,       -- 大陆延迟
+  overseas_score integer null default 0,         -- 海外评分
+  overseas_latency integer null default 0,       -- 海外延迟
+  link text null default ''::text,               -- 节点分享链接
+  constraint nodes_pkey primary key (id)         -- 主键约束
+);
+
+create index idx_nodes_link on public.nodes using btree (link);
+```
+
+### Upsert 策略
+
+代码使用 `upsert` 而非 `insert`：
+```python
+response = supabase.table("nodes").upsert(batch).execute()
+```
+
+**效果**：
+- 如果 `id` 不存在 → 插入新记录
+- 如果 `id` 已存在 → 用新数据**更新**旧记录
+
+这保证了：
+1. 数据库中不会有重复的 `host:port`
+2. 每次同步都会刷新 `speed`, `latency`, `updated_at` 等字段为最新值
 
 ---
 
@@ -199,10 +294,19 @@ supabase==2.3.5
 
 ### 3. 验证启动加载
 
-重启后端，观察日志：
+重启后端，观察日志（约 5 秒后）：
 
-- ☁️ `从 Supabase 加载了 XX 个节点` - 成功从数据库加载
-- 📥 `从本地缓存加载了 XX 个节点` - 使用本地备用
+```
+[18:42:20] 📥 从本地缓存加载了 73 个节点
+[18:42:25] ☁️ 正在从 Supabase 数据库加载节点...
+[18:42:26] ☁️ 从 Supabase 加载了 103 个节点，合并后共 108 个 (原 73 个)
+```
+
+### 4. 检查数据库数据
+
+访问 Supabase Dashboard → Table Editor → nodes：
+- 确认数据存在
+- 检查 `updated_at` 是否为最新时间
 
 ---
 
@@ -212,8 +316,49 @@ supabase==2.3.5
 |------|----------|
 | `backend/app/main.py` | 重写 `/api/sync`，添加 `/api/debug/supabase` |
 | `backend/app/modules/node_hunter/supabase_helper.py` | 增强错误返回，添加详细日志 |
-| `backend/app/modules/node_hunter/node_hunter.py` | 显示详细错误，从 Supabase 加载节点 |
+| `backend/app/modules/node_hunter/node_hunter.py` | 修复异步加载 Bug，实现后台合并策略 |
 | `frontend/src/components/NodeHunter/NodeHunter.vue` | 添加同步按钮 |
+
+---
+
+## 数据流架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SpiderFlow 后端                          │
+│                                                             │
+│  启动时:                                                    │
+│  ├── 1. 立即从 verified_nodes.json 加载 (快速)             │
+│  └── 2. 5秒后后台从 Supabase 加载并合并                    │
+│                                                             │
+│  定时任务 (每3分钟):                                        │
+│  └── 自动同步活跃节点到 Supabase                           │
+│                                                             │
+│  手动同步:                                                  │
+│  └── 前端点击 "同步DB" → POST /api/sync                    │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Supabase 数据库                          │
+│                                                             │
+│  nodes 表:                                                  │
+│  ├── id (主键): host:port                                  │
+│  ├── content: 完整节点 JSON                                │
+│  ├── speed/latency: 评分数据                               │
+│  ├── mainland_score/overseas_score: 双区域评分             │
+│  └── updated_at: 最后更新时间                              │
+│                                                             │
+│  upsert 策略: 存在则更新，不存在则插入                     │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 viper-node-store 前端                       │
+│                                                             │
+│  从 Supabase 读取节点数据并展示                            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
