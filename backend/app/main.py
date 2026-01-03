@@ -230,66 +230,93 @@ async def api_get_nodes(
 
 
 # ==========================================
-# 🔥 新增：数据同步端点 - 允许前端触发数据同步
+# 🔥 数据同步端点 - 直接调用 Supabase 上传
 # ==========================================
 @app.post("/api/sync")
 async def sync_data_to_supabase():
     """
     触发数据同步到 Supabase 的端点
     用于前端 [同步数据] 按钮
+    
+    🔥 修复：不再依赖本地脚本，直接调用 supabase_helper
+    这样在任何环境（本地/Azure/Vercel）都能正常工作
     """
-    import subprocess
     import os
-    import json
+    from datetime import datetime
+    from .modules.node_hunter.supabase_helper import upload_to_supabase, get_supabase_credentials
     
     try:
         print("\n" + "="*70)
         print("📤 收到前端同步请求，开始同步数据到 Supabase...")
         print("="*70)
         
-        # 获取当前项目路径
-        viper_store_path = "/Users/ikun/study/Learning/viper-node-store"
-        script_path = os.path.join(viper_store_path, "sync_nodes_local.py")
-        
-        if not os.path.exists(script_path):
+        # 1. 检查 Supabase 凭证
+        url, key = get_supabase_credentials()
+        if not url or not key:
+            error_msg = "Supabase 凭证未配置！请检查环境变量 SUPABASE_URL 和 SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY"
+            print(f"❌ {error_msg}")
+            print(f"   SUPABASE_URL: {'已设置' if url else '❌ 未设置'}")
+            print(f"   SUPABASE_KEY: {'已设置' if key else '❌ 未设置'}")
             return {
                 "success": False,
-                "message": f"同步脚本不存在: {script_path}",
-                "timestamp": __import__('datetime').datetime.now().isoformat()
+                "message": error_msg,
+                "timestamp": datetime.now().isoformat()
             }
         
-        # 运行同步脚本
-        result = subprocess.run(
-            ["python", script_path],
-            capture_output=True,
-            text=True,
-            cwd=viper_store_path,
-            timeout=120
-        )
+        # 2. 获取活跃节点
+        alive_nodes = node_hunter.get_alive_nodes() if node_hunter else []
         
-        output = result.stdout + result.stderr
+        if not alive_nodes:
+            msg = "没有活跃节点可同步，请先执行节点检测"
+            print(f"⚠️ {msg}")
+            return {
+                "success": False,
+                "message": msg,
+                "node_count": 0,
+                "timestamp": datetime.now().isoformat()
+            }
         
-        print(output)
+        # 3. 去重处理
+        seen = {}
+        for node in alive_nodes:
+            key_id = f"{node.get('host')}:{node.get('port')}"
+            if key_id not in seen:
+                seen[key_id] = node
+        
+        unique_nodes = list(seen.values())
+        print(f"📊 准备同步: {len(unique_nodes)} 个节点 (去重后)")
+        
+        # 4. 执行上传
+        success = await upload_to_supabase(unique_nodes)
+        
         print("="*70)
         
-        return {
-            "success": result.returncode == 0,
-            "message": "数据同步完成" if result.returncode == 0 else "数据同步失败",
-            "output": output[-500:] if len(output) > 500 else output,  # 返回最后 500 字符
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }
+        if success:
+            msg = f"同步成功！已上传 {len(unique_nodes)} 个节点到 Supabase"
+            print(f"✅ {msg}")
+            return {
+                "success": True,
+                "message": msg,
+                "node_count": len(unique_nodes),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            msg = "同步失败，请检查后端日志获取详细错误"
+            print(f"❌ {msg}")
+            return {
+                "success": False,
+                "message": msg,
+                "node_count": len(unique_nodes),
+                "timestamp": datetime.now().isoformat()
+            }
         
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "message": "同步超时（>120秒）",
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ 同步出错: {error_msg}")
+        import traceback
+        error_msg = f"同步异常: {type(e).__name__}: {str(e)}"
+        print(f"❌ {error_msg}")
+        print(traceback.format_exc())
         return {
             "success": False,
-            "message": f"同步出错: {error_msg}",
-            "timestamp": __import__('datetime').datetime.now().isoformat()
+            "message": error_msg,
+            "timestamp": datetime.now().isoformat()
         }
