@@ -6,3 +6,139 @@
   VITE v5.4.21  ready in 510 ms
 
   ➜  Local:   http://localhost:5173/
+02:31:25 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:31:25 [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:2:3
+  1  |  <template>
+  2  |    <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+     |     ^
+  3  |      
+  4  |      <transition name="fade">
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+02:31:49 [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:2:3
+  1  |  <template>
+  2  |    <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+     |     ^
+  3  |      
+  4  |      <transition name="fade">
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+02:31:51 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:32:01 [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:2:3
+  1  |  <template>
+  2  |    <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+     |     ^
+  3  |      
+  4  |      <transition name="fade">
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+Vim: Warning: Output is not to a terminal
+Vim: Warning: Input is not from a terminal
+Vim: Warning: Output is not to a terminal
+Vim: Warning: Input is not from a terminal
+[?1049h[>4;2m[?1h=[?2004h[?1004h[1;24r[?12h[?12l[22;2t[22;1t[27m[29m[m[H[2J[?2004l[>4;m[?2004h[>4;2m[?25l[24;1H</study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue"[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m<erFlow/frontend/src/components/NodeHunter/NodeHunter.vue" [noeol] 749L, 27968B[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[1;1H<template>
+  <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative""[3;1H>[5;5H<transition name="fade">[6;7H<div v-if="testingAll || stats.running" class="absolute top-0 left-0 rightt[7;1H-0 z-50">[8;9H<n-progress[9;11Htype="line"[10;11H:percentage="progressPercentage"[11;11H:show-indicator="false"[12;11Hprocessing[13;11Hcolor="#10b981"[14;11Hheight="3"[15;9H/>[16;7H</div>
+    </transition>[19;5H<div class="header bg-[#1e1e20]/90 backdrop-blur-md border border-white/10 rr[20;1Hounded-full p-2 mb-3 shadow-2xl flex flex-wrap justify-center items-center gap-44[21;1H mx-auto w-fit max-w-full">[23;7H<div class="flex items-center gap-3 pl-2">[1;1H[?25h[?4m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[24;1H[?2004l[>4;m[?1004l[?2004l[?1l>[?1049l[>4;mVim: Error reading input, exiting...
+Vim: Finished.
+[24;1H[23;2t[23;1t
+
+Could not open NodeHunter.vue in the editor.
+The editor process exited with an error: (code 1).
+
+[?1049h[>4;2m[?1h=[?2004h[?1004h[1;24r[?12h[?12l[22;2t[22;1t[27m[29m[m[H[2J[?2004l[>4;m[?2004h[>4;2m[?25l[24;1H<piderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js"[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m<tend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js" 6888L, 205260B[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[1;1H/**
+* @vue/compiler-core v3.5.26
+* (c) 2018-present Yuxi (Evan) You and Vue contributors
+* @license MIT
+**/
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+var shared = require('@vue/shared');
+var decode = require('entities/decode');
+var parser = require('@babel/parser');
+var estreeWalker = require('estree-walker');
+var sourceMapJs = require('source-map-js');
+
+const FRAGMENT = /* @__PURE__ */ Symbol(`Fragment` );
+const TELEPORT = /* @__PURE__ */ Symbol(`Teleport` );
+const SUSPENSE = /* @__PURE__ */ Symbol(`Suspense` );
+const KEEP_ALIVE = /* @__PURE__ */ Symbol(`KeepAlive` );
+const BASE_TRANSITION = /* @__PURE__ */ Symbol(
+  `BaseTransition`
+);
+const OPEN_BLOCK = /* @__PURE__ */ Symbol(`openBlock` );[1;1H[?25h[?4m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[?2004l[>4;m[?2004h[>4;2m[24;1H[?2004l[>4;m[?1004l[?2004l[?1l>[?1049l[>4;mVim: Error reading input, exiting...
+Vim: Finished.
+[24;1H[23;2t[23;1t
+
+Could not open compiler-core.cjs.js in the editor.
+The editor process exited with an error: (code 1).
+
+02:32:12 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css
+02:32:16 [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:2:3
+  1  |  <template>
+  2  |    <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+     |     ^
+  3  |      
+  4  |      <transition name="fade">
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+02:32:29 [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/ikun/study/Learning/SpiderFlow/frontend/src/components/NodeHunter/NodeHunter.vue:2:3
+  1  |  <template>
+  2  |    <div class="node-hunter p-4 h-full flex flex-col gap-4 text-gray-200 relative">
+     |     ^
+  3  |      
+  4  |      <transition name="fade">
+      at createCompilerError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///Users/ikun/study/Learning/SpiderFlow/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+02:32:51 [vite] hmr update /src/components/NodeHunter/NodeHunter.vue, /src/assets/tailwind.css

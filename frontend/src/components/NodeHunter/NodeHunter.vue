@@ -71,6 +71,10 @@
         <n-button type="info" size="tiny" @click="triggerScan" :loading="stats.running" class="glow-effect">
           <template #icon>📡</template> {{ stats.running ? '扫描中' : '扫描' }}
         </n-button>
+
+        <n-button type="success" size="tiny" @click="syncToSupabase" :loading="syncing" :disabled="syncing">
+          <template #icon>☁️</template> {{ syncing ? '同步中' : '同步DB' }}
+        </n-button>
       </div>
     </div>
     <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
@@ -305,6 +309,7 @@ const COUNTRY_MAP = {
 const stats = ref({ count: 0, running: false, logs: [], nodes: [], next_scan_time: null });
 const logRef = ref(null);
 const testingAll = ref(false);
+const syncing = ref(false);  // 🔥 Supabase 同步状态
 // 为了动画效果
 const progressPercentage = ref(0);
 
@@ -465,6 +470,28 @@ async function triggerScan() {
     fetchStats();
   } catch (error) {
     addLog(`❌ 启动失败: ${error.message}`);
+  }
+}
+
+// 🔥 手动触发 Supabase 数据库同步
+async function syncToSupabase() {
+  syncing.value = true;
+  addLog('☁️ 正在同步数据到 Supabase...');
+  try {
+    const { data } = await api.post('/api/sync');
+    if (data.success) {
+      addLog(`✅ ${data.message}`);
+      message.success(data.message);
+    } else {
+      addLog(`⚠️ 同步失败: ${data.message}`);
+      message.warning(data.message);
+    }
+  } catch (error) {
+    const errMsg = error.response?.data?.message || error.message;
+    addLog(`❌ 同步出错: ${errMsg}`);
+    message.error(`同步出错: ${errMsg}`);
+  } finally {
+    syncing.value = false;
   }
 }
 
