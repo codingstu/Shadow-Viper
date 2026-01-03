@@ -128,6 +128,7 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
         
         # 转换节点格式（单个记录包含两个地区数据）
         all_data = []
+        failed_count = 0
         
         for i, node in enumerate(nodes):
             try:
@@ -140,8 +141,17 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                         from .config_generator import generate_node_share_link
                         share_link = generate_node_share_link(node)
                     except Exception as e:
-                        logger.debug(f"⚠️ 生成 share_link 失败: {e}")
+                        logger.error(f"⚠️ 生成 share_link 失败: {e}")
                         share_link = ''
+                
+                # 检查必要的字段
+                mainland_score = node.get('mainland_score', 0)
+                overseas_score = node.get('overseas_score', 0)
+                mainland_latency = node.get('mainland_latency', 9999)
+                overseas_latency = node.get('overseas_latency', 9999)
+                
+                logger.error(f"   处理节点 {i+1}/{len(nodes)}: {node.get('host')}:{node.get('port')}")
+                logger.error(f"      mainland_score={mainland_score}, overseas_score={overseas_score}")
                 
                 # 将节点转换为 Supabase 格式（包含两个地区的数据）
                 converted = {
@@ -149,24 +159,27 @@ async def upload_to_supabase(nodes: List[Dict]) -> bool:
                     "content": node,  # 完整的节点数据
                     "link": share_link,  # 🔥 添加 link 字段！
                     "is_free": i < 20,  # 前 20 个标记为免费
-                    "mainland_score": int(node.get('mainland_score', 0)),
-                    "mainland_latency": int(node.get('mainland_latency', 9999)),
-                    "overseas_score": int(node.get('overseas_score', 0)),
-                    "overseas_latency": int(node.get('overseas_latency', 9999)),
-                    "speed": int(max(node.get('mainland_score', 0), node.get('overseas_score', 0))),
-                    "latency": int(min(node.get('mainland_latency', 9999), node.get('overseas_latency', 9999))),
+                    "mainland_score": int(mainland_score),
+                    "mainland_latency": int(mainland_latency),
+                    "overseas_score": int(overseas_score),
+                    "overseas_latency": int(overseas_latency),
+                    "speed": int(max(mainland_score, overseas_score)),
+                    "latency": int(min(mainland_latency, overseas_latency)),
                     "updated_at": datetime.now().isoformat()
                 }
                 all_data.append(converted)
             except Exception as e:
-                logger.warning(f"⚠️ 节点转换失败 {node.get('id')}: {e}")
+                failed_count += 1
+                logger.error(f"❌ 节点转换失败 {node.get('id')}: {e}")
                 continue
         
         if not all_data:
-            logger.error("❌ 没有有效节点可上传 (all_data 为空)")
+            logger.error(f"❌ 没有有效节点可上传 (all_data 为空)")
+            logger.error(f"   成功转换: 0/{len(nodes)}")
+            logger.error(f"   失败转换: {failed_count}/{len(nodes)}")
             return False
         
-        logger.error(f"📋 准备上传 {len(all_data)} 条节点记录...")
+        logger.error(f"📋 准备上传 {len(all_data)} 条节点记录... (成功转换: {len(all_data)}/{len(nodes)})")
         
         # 分批上传（避免单次请求过大）
         batch_size = 50
