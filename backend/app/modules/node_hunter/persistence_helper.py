@@ -29,6 +29,15 @@ class PersistenceHelper:
     def __init__(self):
         self.supabase = None
         self.initialized = False
+        
+        # 内存缓存备份（当 Supabase 不可用时使用）
+        self.memory_cache = {
+            'sources_cache': {},
+            'parsed_nodes': {},
+            'testing_queue': []
+        }
+        self.use_memory_cache = False  # 标志：是否仅使用内存缓存
+        
         self._init_supabase()
     
     def _init_supabase(self):
@@ -40,18 +49,27 @@ class PersistenceHelper:
             key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
             
             if not url or not key:
-                logger.warning("⚠️ Supabase 凭证未配置，持久化功能禁用")
+                logger.warning("⚠️ Supabase 凭证未配置，使用内存缓存")
+                self.use_memory_cache = True
+                return
+            
+            # 测试 URL 是否有效
+            if "nxdomain" in url.lower() or "error" in url.lower():
+                logger.warning("⚠️ Supabase URL 无效，使用内存缓存")
+                self.use_memory_cache = True
                 return
             
             self.supabase = create_client(url, key)
             logger.info("✅ Supabase 客户端初始化成功")
         except Exception as e:
-            logger.error(f"❌ Supabase 初始化失败: {e}")
+            logger.error(f"❌ Supabase 初始化失败: {e}，改用内存缓存")
+            self.use_memory_cache = True
     
     async def init_persistence_tables(self):
         """初始化持久化表（仅需执行一次，有超时保护）"""
-        if not self.supabase:
-            logger.warning("⚠️ Supabase 未初始化，跳过表创建")
+        if not self.supabase or self.use_memory_cache:
+            logger.warning("⚠️ Supabase 未初始化或使用内存缓存，跳过表创建")
+            self.initialized = True  # 标记为已初始化，即使是内存模式
             return
         
         try:
@@ -72,10 +90,13 @@ class PersistenceHelper:
                     self.initialized = True
                     logger.info("✅ 持久化表初始化完成")
             except asyncio.TimeoutError:
-                logger.warning("⚠️ Supabase 响应超时（2秒），继续启动（表检查失败但不阻塞后端）")
-                self.initialized = False  # 标记为未初始化，稍后重试
+                logger.warning("⚠️ Supabase 响应超时（2秒），切换到内存缓存模式")
+                self.use_memory_cache = True
+                self.initialized = True
         except Exception as e:
-            logger.error(f"❌ 表初始化失败: {e}（继续启动）")
+            logger.warning(f"⚠️ 表初始化失败: {e}，切换到内存缓存模式（继续启动）")
+            self.use_memory_cache = True
+            self.initialized = True
     
     async def _create_sources_cache_table(self):
         """创建订阅源缓存表（异步，防止阻塞）"""
@@ -136,8 +157,12 @@ class PersistenceHelper:
             sources: 订阅源 URL 列表
             node_contents: 源URL -> 节点列表的映射
         """
-        if not self.supabase:
-            return False
+        # 始终保存到内存缓存
+        self.memory_cache['sources_cache'] = node_contents.copy()
+        
+        if not self.supabase or self.use_memory_cache:
+            logger.info(f"💾 已保存到内存缓存 {len(sources)} 个订阅源")
+            return True
         
         try:
             for source_url in sources:
@@ -170,8 +195,8 @@ class PersistenceHelper:
             logger.info(f"✅ 已缓存 {len(sources)} 个订阅源")
             return True
         except Exception as e:
-            logger.error(f"❌ 保存源缓存失败: {e}")
-            return False
+            logger.error(f"⚠️ Supabase 保存源缓存失败: {e}，但内存缓存已保存")
+            return True  # 返回 True，因为内存缓存已保存
     
     async def load_sources_cache(self, sources: List[str]) -> Dict[str, List[str]]:
         """
@@ -180,7 +205,12 @@ class PersistenceHelper:
         Returns:
             源URL -> 节点列表的映射
         """
-        if not self.supabase:
+        # 优先从内存缓存加载
+        if self.memory_cache['sources_cache']:
+            logger.info(f"💾 从内存缓存加载 {len(self.memory_cache['sources_cache'])} 个订阅源")
+            return self.memory_cache['sources_cache'].copy()
+        
+        if not self.supabase or self.use_memory_cache:
             return {}
         
         try:
@@ -223,8 +253,15 @@ class PersistenceHelper:
     
     async def save_parsed_nodes(self, nodes: List[Dict]) -> bool:
         """保存解析后的节点到缓存"""
-        if not self.supabase:
-            return False
+        # 始终保存到内存缓存
+        self.memory_cache['parsed_nodes'] = {}
+        for node in nodes:
+            key = f"{node.get('host')}:{node.get('port')}"
+            self.memory_cache['parsed_nodes'][key] = node
+        
+        if not self.supabase or self.use_memory_cache:
+            logger.info(f"💾 已保存到内存缓存 {len(nodes)} 个解析节点")
+            return True
         
         try:
             records = []
@@ -252,12 +289,18 @@ class PersistenceHelper:
             
             return True
         except Exception as e:
-            logger.error(f"❌ 保存节点缓存失败: {e}")
-            return False
+            logger.error(f"⚠️ Supabase 保存节点缓存失败: {e}，但内存缓存已保存")
+            return True  # 返回 True，因为内存缓存已保存
     
     async def load_parsed_nodes(self) -> List[Dict]:
         """从缓存加载解析节点"""
-        if not self.supabase:
+        # 优先从内存缓存加载
+        if self.memory_cache['parsed_nodes']:
+            nodes = list(self.memory_cache['parsed_nodes'].values())
+            logger.info(f"💾 从内存缓存加载 {len(nodes)} 个解析节点")
+            return nodes
+        
+        if not self.supabase or self.use_memory_cache:
             return []
         
         try:
@@ -288,8 +331,12 @@ class PersistenceHelper:
     
     async def save_testing_queue(self, queue_tasks: List[Dict]) -> bool:
         """保存测速队列任务"""
-        if not self.supabase:
-            return False
+        # 始终保存到内存缓存
+        self.memory_cache['testing_queue'] = queue_tasks.copy()
+        
+        if not self.supabase or self.use_memory_cache:
+            logger.debug(f"💾 已保存到内存缓存 {len(queue_tasks)} 个队列任务")
+            return True
         
         try:
             records = []
@@ -317,12 +364,17 @@ class PersistenceHelper:
             
             return True
         except Exception as e:
-            logger.error(f"❌ 保存队列失败: {e}")
-            return False
+            logger.error(f"⚠️ Supabase 保存队列失败: {e}，但内存缓存已保存")
+            return True  # 返回 True，因为内存缓存已保存
     
     async def load_testing_queue(self) -> List[Dict]:
         """加载未完成的测速队列"""
-        if not self.supabase:
+        # 优先从内存缓存加载
+        if self.memory_cache['testing_queue']:
+            logger.info(f"💾 从内存缓存加载 {len(self.memory_cache['testing_queue'])} 个队列任务")
+            return self.memory_cache['testing_queue'].copy()
+        
+        if not self.supabase or self.use_memory_cache:
             return []
         
         try:
