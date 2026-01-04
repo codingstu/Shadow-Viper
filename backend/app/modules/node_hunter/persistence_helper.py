@@ -1,0 +1,425 @@
+# backend/app/modules/node_hunter/persistence_helper.py
+# -*- coding: utf-8 -*-
+"""
+持久化助手 - 负责与数据库的缓存读写
+
+功能：
+1. 初始化三个持久化表 (sources_cache, parsed_nodes, testing_queue)
+2. 缓存订阅源内容 (6小时 TTL)
+3. 缓存解析后的节点 (6小时 TTL)
+4. 保存和恢复测速队列进度
+5. 定期清理过期数据
+"""
+
+import os
+import logging
+import json
+import base64
+import asyncio
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+
+class PersistenceHelper:
+    """持久化管理器 - 统一管理所有缓存操作"""
+    
+    def __init__(self):
+        self.supabase = None
+        self.initialized = False
+        self._init_supabase()
+    
+    def _init_supabase(self):
+        """初始化 Supabase 客户端"""
+        try:
+            from supabase import create_client
+            
+            url = os.getenv("SUPABASE_URL", "")
+            key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+            
+            if not url or not key:
+                logger.warning("⚠️ Supabase 凭证未配置，持久化功能禁用")
+                return
+            
+            self.supabase = create_client(url, key)
+            logger.info("✅ Supabase 客户端初始化成功")
+        except Exception as e:
+            logger.error(f"❌ Supabase 初始化失败: {e}")
+    
+    async def init_persistence_tables(self):
+        """初始化持久化表（仅需执行一次）"""
+        if not self.supabase:
+            logger.warning("⚠️ Supabase 未初始化，跳过表创建")
+            return
+        
+        try:
+            logger.info("🔧 检查并创建持久化表...")
+            
+            # 表1: sources_cache (订阅源缓存)
+            await self._create_sources_cache_table()
+            
+            # 表2: parsed_nodes (解析节点缓存)
+            await self._create_parsed_nodes_table()
+            
+            # 表3: testing_queue (测速队列)
+            await self._create_testing_queue_table()
+            
+            self.initialized = True
+            logger.info("✅ 持久化表初始化完成")
+        except Exception as e:
+            logger.error(f"❌ 表初始化失败: {e}")
+    
+    async def _create_sources_cache_table(self):
+        """创建订阅源缓存表"""
+        try:
+            # 尝试查询表是否存在
+            self.supabase.table("sources_cache").select("id").limit(1).execute()
+            logger.debug("✅ sources_cache 表已存在")
+        except Exception as e:
+            if "does not exist" in str(e) or "404" in str(e):
+                logger.info("📝 创建 sources_cache 表...")
+                # 这里实际上无法直接创建表，需要在 Supabase 控制面板手动创建
+                # 或者使用 SQL 执行器
+                # 表结构如下：
+                # CREATE TABLE sources_cache (
+                #   id BIGINT PRIMARY KEY,
+                #   source_url VARCHAR(500) UNIQUE,
+                #   content TEXT,
+                #   node_count INT,
+                #   last_fetched_at TIMESTAMP,
+                #   ttl_hours INT DEFAULT 6,
+                #   created_at TIMESTAMP,
+                #   updated_at TIMESTAMP
+                # )
+                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 sources_cache 表")
+            else:
+                raise e
+    
+    async def _create_parsed_nodes_table(self):
+        """创建解析节点缓存表"""
+        try:
+            self.supabase.table("parsed_nodes").select("id").limit(1).execute()
+            logger.debug("✅ parsed_nodes 表已存在")
+        except Exception as e:
+            if "does not exist" in str(e) or "404" in str(e):
+                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 parsed_nodes 表")
+                # CREATE TABLE parsed_nodes (
+                #   id BIGINT PRIMARY KEY,
+                #   host VARCHAR(255),
+                #   port INT,
+                #   name VARCHAR(255),
+                #   protocol VARCHAR(50),
+                #   full_content TEXT,
+                #   source_url VARCHAR(500),
+                #   parsed_at TIMESTAMP,
+                #   created_at TIMESTAMP,
+                #   updated_at TIMESTAMP,
+                #   UNIQUE(host, port)
+                # )
+            else:
+                raise e
+    
+    async def _create_testing_queue_table(self):
+        """创建测速队列表"""
+        try:
+            self.supabase.table("testing_queue").select("id").limit(1).execute()
+            logger.debug("✅ testing_queue 表已存在")
+        except Exception as e:
+            if "does not exist" in str(e) or "404" in str(e):
+                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 testing_queue 表")
+                # CREATE TABLE testing_queue (
+                #   id BIGINT PRIMARY KEY,
+                #   group_number INT,
+                #   group_position INT,
+                #   node_host VARCHAR(255),
+                #   node_port INT,
+                #   node_name VARCHAR(255),
+                #   status VARCHAR(20),
+                #   attempted_count INT DEFAULT 0,
+                #   last_tested_at TIMESTAMP,
+                #   created_at TIMESTAMP,
+                #   updated_at TIMESTAMP
+                # )
+            else:
+                raise e
+    
+    # ==================== 订阅源缓存 ====================
+    
+    async def save_sources_cache(self, sources: List[str], node_contents: Dict[str, List[str]]) -> bool:
+        """
+        保存订阅源和爬取内容到缓存
+        
+        Args:
+            sources: 订阅源 URL 列表
+            node_contents: 源URL -> 节点列表的映射
+        """
+        if not self.supabase:
+            return False
+        
+        try:
+            for source_url in sources:
+                nodes = node_contents.get(source_url, [])
+                if not nodes:
+                    continue
+                
+                # 压缩内容并 base64 编码
+                content_str = json.dumps(nodes, ensure_ascii=False)
+                content_b64 = base64.b64encode(content_str.encode()).decode()
+                
+                # 生成唯一 ID
+                content_hash = hashlib.md5(content_str.encode()).hexdigest()
+                record_id = int(content_hash[:8], 16)
+                
+                record = {
+                    "id": record_id,
+                    "source_url": source_url[:500],
+                    "content": content_b64,
+                    "node_count": len(nodes),
+                    "last_fetched_at": datetime.utcnow().isoformat(),
+                    "ttl_hours": 6,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                
+                # upsert (如果存在则更新，不存在则插入)
+                self.supabase.table("sources_cache").upsert(record).execute()
+            
+            logger.info(f"✅ 已缓存 {len(sources)} 个订阅源")
+            return True
+        except Exception as e:
+            logger.error(f"❌ 保存源缓存失败: {e}")
+            return False
+    
+    async def load_sources_cache(self, sources: List[str]) -> Dict[str, List[str]]:
+        """
+        从缓存加载订阅源内容
+        
+        Returns:
+            源URL -> 节点列表的映射
+        """
+        if not self.supabase:
+            return {}
+        
+        try:
+            result = {}
+            for source_url in sources:
+                # 尝试从缓存查询
+                response = self.supabase.table("sources_cache")\
+                    .select("*")\
+                    .eq("source_url", source_url[:500])\
+                    .execute()
+                
+                if not response.data:
+                    continue
+                
+                record = response.data[0]
+                
+                # 检查是否过期
+                last_fetched = datetime.fromisoformat(record["last_fetched_at"])
+                ttl_hours = record.get("ttl_hours", 6)
+                
+                if datetime.utcnow() - last_fetched > timedelta(hours=ttl_hours):
+                    logger.debug(f"⏰ 源缓存已过期: {source_url[:30]}")
+                    continue
+                
+                # 解码内容
+                try:
+                    content_str = base64.b64decode(record["content"]).decode()
+                    nodes = json.loads(content_str)
+                    result[source_url] = nodes
+                    logger.debug(f"✅ 加载缓存源: {source_url[:30]} ({len(nodes)} 个节点)")
+                except Exception as e:
+                    logger.warning(f"⚠️ 解码缓存失败: {e}")
+            
+            return result
+        except Exception as e:
+            logger.error(f"❌ 加载源缓存失败: {e}")
+            return {}
+    
+    # ==================== 解析节点缓存 ====================
+    
+    async def save_parsed_nodes(self, nodes: List[Dict]) -> bool:
+        """保存解析后的节点到缓存"""
+        if not self.supabase:
+            return False
+        
+        try:
+            records = []
+            for node in nodes:
+                record = {
+                    "id": int(hashlib.md5(
+                        f"{node.get('host')}:{node.get('port')}".encode()
+                    ).hexdigest()[:8], 16),
+                    "host": node.get("host", ""),
+                    "port": node.get("port", 0),
+                    "name": node.get("name", "")[:255],
+                    "protocol": node.get("protocol", "")[:50],
+                    "full_content": json.dumps(node, ensure_ascii=False),
+                    "source_url": node.get("source_url", "")[:500],
+                    "parsed_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                records.append(record)
+            
+            # 批量 upsert
+            if records:
+                self.supabase.table("parsed_nodes").upsert(records).execute()
+                logger.info(f"✅ 已缓存 {len(records)} 个解析节点")
+            
+            return True
+        except Exception as e:
+            logger.error(f"❌ 保存节点缓存失败: {e}")
+            return False
+    
+    async def load_parsed_nodes(self) -> List[Dict]:
+        """从缓存加载解析节点"""
+        if not self.supabase:
+            return []
+        
+        try:
+            # 查询最近 6 小时内的节点
+            six_hours_ago = (datetime.utcnow() - timedelta(hours=6)).isoformat()
+            
+            response = self.supabase.table("parsed_nodes")\
+                .select("full_content")\
+                .gte("updated_at", six_hours_ago)\
+                .order("updated_at", desc=True)\
+                .execute()
+            
+            nodes = []
+            for record in response.data:
+                try:
+                    node = json.loads(record["full_content"])
+                    nodes.append(node)
+                except Exception as e:
+                    logger.warning(f"⚠️ 解析节点失败: {e}")
+            
+            logger.info(f"✅ 从缓存加载 {len(nodes)} 个解析节点")
+            return nodes
+        except Exception as e:
+            logger.error(f"❌ 加载节点缓存失败: {e}")
+            return []
+    
+    # ==================== 测速队列 ====================
+    
+    async def save_testing_queue(self, queue_tasks: List[Dict]) -> bool:
+        """保存测速队列任务"""
+        if not self.supabase:
+            return False
+        
+        try:
+            records = []
+            for idx, task in enumerate(queue_tasks):
+                record = {
+                    "id": int(hashlib.md5(
+                        f"{task['node_host']}:{task['node_port']}:{idx}".encode()
+                    ).hexdigest()[:8], 16),
+                    "group_number": task.get("group_number", 0),
+                    "group_position": task.get("group_position", 0),
+                    "node_host": task.get("node_host", ""),
+                    "node_port": task.get("node_port", 0),
+                    "node_name": task.get("node_name", "")[:255],
+                    "status": task.get("status", "pending"),
+                    "attempted_count": task.get("attempted_count", 0),
+                    "last_tested_at": task.get("last_tested_at"),
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                records.append(record)
+            
+            if records:
+                self.supabase.table("testing_queue").upsert(records).execute()
+                logger.debug(f"✅ 已保存 {len(records)} 个队列任务")
+            
+            return True
+        except Exception as e:
+            logger.error(f"❌ 保存队列失败: {e}")
+            return False
+    
+    async def load_testing_queue(self) -> List[Dict]:
+        """加载未完成的测速队列"""
+        if not self.supabase:
+            return []
+        
+        try:
+            # 查询所有未完成的任务，按组和位置排序
+            response = self.supabase.table("testing_queue")\
+                .select("*")\
+                .neq("status", "completed")\
+                .order("group_number", desc=False)\
+                .order("group_position", desc=False)\
+                .execute()
+            
+            if response.data:
+                logger.info(f"✅ 恢复 {len(response.data)} 个未完成的队列任务")
+                return response.data
+            
+            return []
+        except Exception as e:
+            logger.warning(f"⚠️ 加载队列失败: {e}")
+            return []
+    
+    async def update_task_status(self, node_host: str, node_port: int, status: str) -> bool:
+        """更新单个任务状态"""
+        if not self.supabase:
+            return False
+        
+        try:
+            self.supabase.table("testing_queue")\
+                .update({
+                    "status": status,
+                    "last_tested_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                })\
+                .eq("node_host", node_host)\
+                .eq("node_port", node_port)\
+                .execute()
+            
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ 更新任务状态失败: {e}")
+            return False
+    
+    # ==================== 数据清理 ====================
+    
+    async def cleanup_expired_cache(self) -> bool:
+        """清理过期的缓存数据"""
+        if not self.supabase:
+            return False
+        
+        try:
+            # 删除 7 天前的已完成任务
+            seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+            self.supabase.table("testing_queue")\
+                .delete()\
+                .eq("status", "completed")\
+                .lt("created_at", seven_days_ago)\
+                .execute()
+            
+            # 删除过期的源缓存 (> 24小时)
+            twentyfour_hours_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+            self.supabase.table("sources_cache")\
+                .delete()\
+                .lt("last_fetched_at", twentyfour_hours_ago)\
+                .execute()
+            
+            logger.info("✅ 过期缓存清理完成")
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ 清理缓存失败: {e}")
+            return False
+
+
+# 全局持久化管理器实例
+_persistence_instance = None
+
+
+def get_persistence() -> PersistenceHelper:
+    """获取全局持久化管理器实例"""
+    global _persistence_instance
+    if _persistence_instance is None:
+        _persistence_instance = PersistenceHelper()
+    return _persistence_instance

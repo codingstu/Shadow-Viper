@@ -39,6 +39,7 @@ from .simple_availability_check import (
 )
 from .real_speed_test import RealSpeedTester
 from .geolocation_helper import GeolocationHelper
+from .persistence_helper import get_persistence
 
 try:
     from ..proxy.proxy_engine import manager as pool_manager
@@ -161,6 +162,10 @@ class NodeHunter:
         self.user_sources = self._load_user_sources()
         self.sources = self._get_default_sources() + self.user_sources
         self.scheduler = AsyncIOScheduler()
+        
+        # 🔥 初始化持久化管理器
+        self.persistence = get_persistence()
+        
         self._load_nodes_from_file()
 
         self.source_stats: Dict[str, Dict] = {}
@@ -181,6 +186,10 @@ class NodeHunter:
         self.max_retries = 3  # 失败重试3次
         self.last_sync_time = 0  # 上次同步时间
         self.sync_interval = 3600  # 1小时同步一次 (秒)
+        
+        # 🔥 新增：测速队列进度追踪（来自持久化）
+        self.testing_queue_tasks: List[Dict] = []  # 测速任务队列
+        self.current_queue_index = 0  # 当前处理的队列索引
         
         # 🔥 新增: socks/http 开关控制 (默认关闭)
         self.show_socks_http = False  # 是否显示 socks/http 节点
@@ -221,12 +230,25 @@ class NodeHunter:
                 seconds=0
             )
             
+            # 🔥 新增：定期清理过期缓存 (每日凌晨 3 点)
+            self.scheduler.add_job(
+                self._cleanup_expired_cache_task,
+                'cron',
+                hour=3,
+                minute=0,
+                id='cache_cleanup'
+            )
+            
             self.scheduler.start()
-            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 3min/Supabase)", "SUCCESS")
+            self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 3min/Supabase, 每日3:00清理缓存)", "SUCCESS")
             
             # 🔥 延迟 30 秒启动首次扫描，给后端足够时间启动 API 服务，防止前端连接超时
-            async def delayed_scan_and_batch_test():
+            async def delayed_init_and_scan():
                 try:
+                    # 初始化持久化表
+                    await self.persistence.init_persistence_tables()
+                    self.add_log("✅ 持久化表初始化完成", "SUCCESS")
+                    
                     await asyncio.sleep(30)
                     self.add_log("⏰ 30秒延迟已过期，启动首次节点扫描...", "INFO")
                     await self.scan_cycle()
@@ -247,11 +269,11 @@ class NodeHunter:
                         self.add_log("❌ 爬虫完成后队列仍为空，可能爬虫失败", "ERROR")
                     
                 except Exception as e:
-                    self.add_log(f"❌ [System] 扫描/检测异常: {str(e)}", "ERROR")
-                    logger.exception("扫描/检测异常")
+                    self.add_log(f"❌ [System] 初始化/扫描异常: {str(e)}", "ERROR")
+                    logger.exception("初始化/扫描异常")
             
             # 创建任务但不等待，避免阻塞启动过程
-            task = asyncio.create_task(delayed_scan_and_batch_test())
+            task = asyncio.create_task(delayed_init_and_scan())
             # 添加任务完成回调处理可能的异常
             task.add_done_callback(lambda t: t.exception() if t.exception() else None)
 
@@ -1284,6 +1306,27 @@ class NodeHunter:
         except Exception as e:
             self.add_log(f"❌ Supabase 同步异常: {type(e).__name__}: {e}", "ERROR")
             logger.exception("Supabase 同步异常")
+
+    async def _cleanup_expired_cache_task(self):
+        """
+        🔥 新增：定期清理过期缓存 - 每日凌晨 3 点执行
+        
+        清理内容：
+        1. 删除 7 天前的已完成任务
+        2. 删除过期的源缓存 (> 24小时)
+        3. 删除过期的节点缓存 (> 6小时)
+        """
+        try:
+            self.add_log("🧹 开始清理过期缓存...", "INFO")
+            success = await self.persistence.cleanup_expired_cache()
+            
+            if success:
+                self.add_log("✅ 过期缓存清理完成", "SUCCESS")
+            else:
+                self.add_log("⚠️ 过期缓存清理部分失败", "WARNING")
+        except Exception as e:
+            self.add_log(f"❌ 缓存清理异常: {e}", "ERROR")
+            logger.exception("缓存清理异常")
 
     async def _test_nodes_with_new_system(self, nodes_to_test: List[Dict]):
         """
