@@ -100,8 +100,6 @@ class PersistenceHelper:
                 logger.info("📝 parsed_nodes 表不存在（需要手动创建）")
             else:
                 logger.debug(f"⚠️ 检查 parsed_nodes 失败: {e}")
-            else:
-                raise e
     
     async def _create_testing_queue_table(self):
         """创建测速队列表（异步，防止阻塞）"""
