@@ -634,6 +634,13 @@ class NodeHunter:
             'total_nodes': total_from_sources
         })
         
+        # 💾 保存源缓存到Supabase
+        try:
+            await self.persistence.save_sources_cache(source_node_mapping, source_nodes_map)
+            self.add_log(f"💾 源缓存已保存到Supabase", "SUCCESS")
+        except Exception as e:
+            self.add_log(f"⚠️ 源缓存保存失败: {e}", "WARNING")
+        
         return list(set(all_nodes)), source_node_mapping
 
     async def _fetch_china_nodes(self) -> List[Dict]:
@@ -838,7 +845,14 @@ class NodeHunter:
             unique_nodes = list({f"{n['host']}:{n['port']}": n for n in all_nodes if n}.values())
             self.add_log(f"🔍 爬虫解析成功 {len(unique_nodes)} 个唯一节点", "INFO")
             
-            # 🔥 P3: 将新节点入队而不是直接检测
+            # � 保存已解析节点缓存到Supabase
+            try:
+                await self.persistence.save_parsed_nodes(unique_nodes)
+                self.add_log(f"💾 已解析节点缓存已保存到Supabase ({len(unique_nodes)} 个)", "SUCCESS")
+            except Exception as e:
+                self.add_log(f"⚠️ 节点缓存保存失败: {e}", "WARNING")
+            
+            # �🔥 P3: 将新节点入队而不是直接检测
             new_added = self._add_nodes_to_queue(unique_nodes)
             
             self.add_log(
@@ -1337,7 +1351,24 @@ class NodeHunter:
         2. 基础 + 深度可用性检测 (本地后端) - 必须
         3. 持续监测 (定期 ping) - 未来扩展
         """
-        # 🔥 修复：确保所有节点都有名称，避免 "Unknown" 显示
+        # � 保存当前测速队列状态到Supabase
+        try:
+            queue_data = [
+                {
+                    'group_number': i // 100,  # 简单的分组逻辑
+                    'group_position': i % 100,
+                    'node_host': node.get('host'),
+                    'node_port': node.get('port'),
+                    'status': 'pending'
+                }
+                for i, node in enumerate(nodes_to_test)
+            ]
+            await self.persistence.save_testing_queue(queue_data)
+            self.add_log(f"💾 测速队列已保存到Supabase ({len(nodes_to_test)} 个节点)", "SUCCESS")
+        except Exception as e:
+            self.add_log(f"⚠️ 测速队列保存失败: {e}", "WARNING")
+        
+        # �🔥 修复：确保所有节点都有名称，避免 "Unknown" 显示
         for node in nodes_to_test:
             if not node.get('name') or node.get('name') == 'Unknown':
                 # 使用国家代码 + host:port 作为备用名称
@@ -1733,6 +1764,19 @@ class NodeHunter:
 
         self.nodes = sorted(valid_nodes, key=lambda x: x.get('test_results', {}).get('total_score', 0), reverse=True)
         self.add_log(f"🎉 测试完成！有效节点: {len(self.nodes)}/{len(nodes_to_test)}", "SUCCESS")
+
+        # 💾 更新每个节点的测试状态到Supabase
+        try:
+            for node in self.nodes:
+                status = 'passed' if node.get('alive') else 'failed'
+                await self.persistence.update_task_status(
+                    node.get('host'),
+                    node.get('port'),
+                    status
+                )
+            self.add_log(f"💾 已更新 {len(self.nodes)} 个节点的测试状态到Supabase", "SUCCESS")
+        except Exception as e:
+            self.add_log(f"⚠️ 更新节点状态失败: {e}", "WARNING")
 
         if self.nodes:
             self.subscription_base64 = generate_subscription_content(self.nodes)
