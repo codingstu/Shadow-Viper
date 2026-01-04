@@ -1300,6 +1300,7 @@ class NodeHunter:
         2. 只同步已验证的活跃节点 (alive=True)
         3. 自动去重（通过 host:port）
         4. 包含大陆和海外的测速数据
+        5. 网络故障时自动降级（使用内存缓存）
         """
         try:
             alive_nodes = [n for n in self.nodes if n.get('alive')]
@@ -1317,16 +1318,17 @@ class NodeHunter:
             
             unique_nodes = list(seen.values())
             
-            self.add_log(f"📤 Supabase 同步: {len(unique_nodes)} 个活跃节点（已去重）...", "INFO")
+            self.add_log(f"📤 尝试同步到 Supabase: {len(unique_nodes)} 个活跃节点...", "INFO")
             
-            # 🔥 增强：先检查凭证状态
+            # 🔥 增强：先检查凭证和网络状态
             import os
             url = os.getenv("SUPABASE_URL", "")
             key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
-            self.add_log(f"🔍 环境变量检查: URL={'✅' if url else '❌'}, KEY={'✅' if key else '❌'}", "INFO")
             
-            if not url or not key:
-                self.add_log(f"❌ Supabase 环境变量未配置！请检查 SUPABASE_URL 和 SUPABASE_KEY", "ERROR")
+            if not url or not key or self.persistence_helper.use_memory_cache:
+                self.add_log(f"💾 Supabase 不可用，已保存到内存缓存 {len(unique_nodes)} 个节点", "INFO")
+                # 仍然保存到内存缓存以供 API 使用
+                await self.persistence_helper.save_parsed_nodes(unique_nodes)
                 return
             
             # 上传到 Supabase (返回 tuple: (success, message/count))
@@ -1342,11 +1344,20 @@ class NodeHunter:
                 self.last_supabase_sync_time = time.time()
                 self.add_log(f"✅ Supabase 同步完成！{detail} 个节点已写入数据库", "SUCCESS")
             else:
-                self.add_log(f"⚠️ Supabase 同步失败: {detail}", "WARNING")
+                self.add_log(f"⚠️ Supabase 同步失败: {detail}，已保存到内存缓存", "WARNING")
+                # 即使 Supabase 失败，也保存到内存缓存
+                await self.persistence_helper.save_parsed_nodes(unique_nodes)
                 
         except Exception as e:
-            self.add_log(f"❌ Supabase 同步异常: {type(e).__name__}: {e}", "ERROR")
+            self.add_log(f"⚠️ Supabase 同步异常: {type(e).__name__}: {e}，已保存到内存缓存", "WARNING")
             logger.exception("Supabase 同步异常")
+            # 异常时也保存到内存缓存，确保数据不丢失
+            try:
+                alive_nodes = [n for n in self.nodes if n.get('alive')]
+                if alive_nodes:
+                    await self.persistence_helper.save_parsed_nodes(alive_nodes)
+            except:
+                pass
 
     async def _cleanup_expired_cache_task(self):
         """
