@@ -119,10 +119,14 @@ class ClashBasicChecker:
             # 测试连接
             start_time = asyncio.get_event_loop().time()
             
+            # 使用 mounts 而不是 proxies（httpx 0.25+ 标准方式）
+            http_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
+            https_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
+            
             async with httpx.AsyncClient(
-                proxies={
-                    "http://": f"http://127.0.0.1:{port}",
-                    "https://": f"http://127.0.0.1:{port}"
+                mounts={
+                    "http://": http_transport,
+                    "https://": https_transport
                 },
                 timeout=self.timeout,
                 follow_redirects=False,

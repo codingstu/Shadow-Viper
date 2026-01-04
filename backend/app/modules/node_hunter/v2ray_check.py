@@ -9,6 +9,7 @@ import json
 import subprocess
 import tempfile
 import os
+import httpx
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass
@@ -230,11 +231,14 @@ class V2RayChecker:
             start_time = asyncio.get_event_loop().time()
             
             try:
-                import httpx
+                # 使用 mounts 而不是 proxies（httpx 0.25+ 标准方式）
+                http_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
+                https_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
+                
                 async with httpx.AsyncClient(
-                    proxies={
-                        "http://": f"http://127.0.0.1:{port}",
-                        "https://": f"http://127.0.0.1:{port}"
+                    mounts={
+                        "http://": http_transport,
+                        "https://": https_transport
                     },
                     timeout=10,
                     follow_redirects=False,
