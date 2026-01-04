@@ -67,9 +67,9 @@ async def test_download_speed(
 
         test_url = test_config["url"]
 
-        # httpx 0.25.x 版本中，使用 mounts 而不是 proxies 参数
-        http_transport = httpx.HTTPTransport(proxy=proxy_url)
-        https_transport = httpx.HTTPTransport(proxy=proxy_url)
+        # httpx 0.25.x 版本中，使用 AsyncHTTPTransport + mounts 而不是 proxies 参数
+        http_transport = httpx.AsyncHTTPTransport(proxy=proxy_url)
+        https_transport = httpx.AsyncHTTPTransport(proxy=proxy_url)
 
         async with httpx.AsyncClient(
             mounts={
@@ -143,10 +143,10 @@ async def test_http_latency(
         延迟 (毫秒)，如果失败返回 None
     """
     try:
-        # httpx 0.25.x 版本中，使用 mounts 而不是 proxies 参数
+        # httpx 0.25.x 版本中，使用 AsyncHTTPTransport + mounts 而不是 proxies 参数
         # 构建 HTTP/HTTPS transport
-        http_transport = httpx.HTTPTransport(proxy=proxy_url)
-        https_transport = httpx.HTTPTransport(proxy=proxy_url)
+        http_transport = httpx.AsyncHTTPTransport(proxy=proxy_url)
+        https_transport = httpx.AsyncHTTPTransport(proxy=proxy_url)
 
         async with httpx.AsyncClient(
             mounts={

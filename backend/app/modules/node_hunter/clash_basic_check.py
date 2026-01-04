@@ -119,9 +119,9 @@ class ClashBasicChecker:
             # 测试连接
             start_time = asyncio.get_event_loop().time()
             
-            # 使用 mounts 而不是 proxies（httpx 0.25+ 标准方式）
-            http_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
-            https_transport = httpx.HTTPTransport(proxy=f"http://127.0.0.1:{port}")
+            # 使用 AsyncHTTPTransport + mounts（httpx 0.25+ 异步方式）
+            http_transport = httpx.AsyncHTTPTransport(proxy=f"http://127.0.0.1:{port}")
+            https_transport = httpx.AsyncHTTPTransport(proxy=f"http://127.0.0.1:{port}")
             
             async with httpx.AsyncClient(
                 mounts={
