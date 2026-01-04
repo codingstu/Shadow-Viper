@@ -250,9 +250,9 @@ class NodeHunter:
                     await self.persistence.init_persistence_tables()
                     self.add_log("✅ 持久化表初始化完成", "SUCCESS")
                     
-                    # Persistence 初始化完后，再等待 28 秒才启动爬虫
-                    await asyncio.sleep(28)
-                    self.add_log("⏰ 30秒延迟已过期，启动首次节点扫描...", "INFO")
+                    # 🔥 延长到 5 分钟后再启动爬虫，避免启动时 pending 问题
+                    await asyncio.sleep(298)  # 5分钟 - 2秒 = 298秒
+                    self.add_log("⏰ 5分钟延迟已过期，启动首次节点扫描...", "INFO")
                     await self.scan_cycle()
                     
                     # 等待爬虫完成，然后启动检测
@@ -813,12 +813,31 @@ class NodeHunter:
         """
         🔥 P3优化: 爬虫改为仅负责爬取和入队，不进行检测
         新节点入队到待检测队列，由独立的批量检测任务处理
+        优先从缓存加载，避免重复扫描
         """
         if self.is_scanning: 
             self.add_log("⚠️ 爬虫已在运行中，跳过本次执行", "WARNING")
             return
         
         self.is_scanning = True
+        
+        # 🔥 优先尝试从缓存加载已解析的节点，避免重复扫描
+        try:
+            cached_nodes = await self.persistence.load_parsed_nodes()
+            if cached_nodes and len(cached_nodes) > 1000:  # 如果缓存有足够的节点（>1000）
+                self.add_log(f"✅ 从缓存加载 {len(cached_nodes)} 个已解析节点，跳过爬虫扫描", "SUCCESS")
+                new_added = self._add_nodes_to_queue(cached_nodes)
+                self.add_log(
+                    f"📥 缓存加载模式: {new_added} 个新节点已入队，"
+                    f"当前队列待检测: {len(self.pending_nodes_queue)} 个",
+                    "SUCCESS"
+                )
+                self.is_scanning = False
+                return  # 不再执行爬虫，直接返回
+        except Exception as e:
+            self.add_log(f"⚠️ 缓存加载失败: {e}，改用爬虫扫描", "WARNING")
+        
+        # 缓存无效或加载失败，进行完整扫描
         self.add_log("🚀 开始全网节点爬虫（仅爬取，不检测）...", "INFO")
         
         try:
