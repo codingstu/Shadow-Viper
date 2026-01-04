@@ -242,21 +242,23 @@ class NodeHunter:
             self.scheduler.start()
             self.add_log("✅ [System] 节点猎手自动巡航已启动 (6h/爬虫, 1h/检测, 1h/同步, 3min/Supabase, 每日3:00清理缓存)", "SUCCESS")
             
-            # 🔥 延迟 30 秒启动首次扫描，给后端足够时间启动 API 服务，防止前端连接超时
-            async def delayed_init_and_scan():
+            # 🔥 改进：Persistence 初始化和爬虫启动都改为后台任务，不阻塞 FastAPI 启动
+            async def init_persistence_background():
+                """后台初始化持久化，不阻塞启动"""
                 try:
-                    # 初始化持久化表
+                    await asyncio.sleep(2)  # 等待 FastAPI 完全启动（2秒）
                     await self.persistence.init_persistence_tables()
                     self.add_log("✅ 持久化表初始化完成", "SUCCESS")
                     
-                    await asyncio.sleep(30)
+                    # Persistence 初始化完后，再等待 28 秒才启动爬虫
+                    await asyncio.sleep(28)
                     self.add_log("⏰ 30秒延迟已过期，启动首次节点扫描...", "INFO")
                     await self.scan_cycle()
                     
-                    # 🔥 改进：增加重试机制，确保检测一定会执行
+                    # 等待爬虫完成，然后启动检测
                     max_retries = 5
                     for attempt in range(max_retries):
-                        await asyncio.sleep(10)  # 等待10秒让爬虫完成
+                        await asyncio.sleep(10)
                         
                         if self.pending_nodes_queue:
                             self.add_log(f"🚀 爬虫完成，立即启动首次批量检测... (队列: {len(self.pending_nodes_queue)} 个节点)", "INFO")
@@ -269,13 +271,12 @@ class NodeHunter:
                         self.add_log("❌ 爬虫完成后队列仍为空，可能爬虫失败", "ERROR")
                     
                 except Exception as e:
-                    self.add_log(f"❌ [System] 初始化/扫描异常: {str(e)}", "ERROR")
-                    logger.exception("初始化/扫描异常")
+                    self.add_log(f"❌ [System] 后台初始化异常: {str(e)}", "ERROR")
+                    logger.exception("后台初始化异常")
             
-            # 创建任务但不等待，避免阻塞启动过程
-            task = asyncio.create_task(delayed_init_and_scan())
-            # 添加任务完成回调处理可能的异常
-            task.add_done_callback(lambda t: t.exception() if t.exception() else None)
+            # 🔥 创建后台任务，立即返回，不阻塞 FastAPI
+            task = asyncio.create_task(init_persistence_background())
+            task.add_done_callback(lambda t: logger.exception(t.exception()) if t.exception() else None)
 
     def get_alive_nodes(self) -> List[Dict[str, Any]]:
         return [node for node in self.nodes if node.get('alive')]
@@ -615,7 +616,14 @@ class NodeHunter:
                         self.add_log(f"🚫 [{source_name}] 已禁用(连续失败3次)", "WARNING")
             return []
 
-        tasks = [fetch_source(src) for src in target_urls]
+        # 🔥 添加 Semaphore 限流，最多同时 10 个并发源请求，防止连接耗尽
+        semaphore = asyncio.Semaphore(10)
+        
+        async def fetch_source_with_limit(url):
+            async with semaphore:
+                return await fetch_source(url)
+        
+        tasks = [fetch_source_with_limit(src) for src in target_urls]
         results = await asyncio.gather(*tasks)
         for i, res in enumerate(results):
             all_nodes.extend(res)

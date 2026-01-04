@@ -49,86 +49,69 @@ class PersistenceHelper:
             logger.error(f"❌ Supabase 初始化失败: {e}")
     
     async def init_persistence_tables(self):
-        """初始化持久化表（仅需执行一次）"""
+        """初始化持久化表（仅需执行一次，有超时保护）"""
         if not self.supabase:
             logger.warning("⚠️ Supabase 未初始化，跳过表创建")
             return
         
         try:
-            logger.info("🔧 检查并创建持久化表...")
+            logger.info("🔧 检查并创建持久化表（最多2秒）...")
             
-            # 表1: sources_cache (订阅源缓存)
-            await self._create_sources_cache_table()
-            
-            # 表2: parsed_nodes (解析节点缓存)
-            await self._create_parsed_nodes_table()
-            
-            # 表3: testing_queue (测速队列)
-            await self._create_testing_queue_table()
-            
-            self.initialized = True
-            logger.info("✅ 持久化表初始化完成")
+            try:
+                # 🔥 加入 2 秒超时，防止 Supabase 慢导致后端卡住
+                async with asyncio.timeout(2):
+                    # 表1: sources_cache (订阅源缓存)
+                    await self._create_sources_cache_table()
+                    
+                    # 表2: parsed_nodes (解析节点缓存)
+                    await self._create_parsed_nodes_table()
+                    
+                    # 表3: testing_queue (测速队列)
+                    await self._create_testing_queue_table()
+                    
+                    self.initialized = True
+                    logger.info("✅ 持久化表初始化完成")
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Supabase 响应超时（2秒），继续启动（表检查失败但不阻塞后端）")
+                self.initialized = False  # 标记为未初始化，稍后重试
         except Exception as e:
-            logger.error(f"❌ 表初始化失败: {e}")
+            logger.error(f"❌ 表初始化失败: {e}（继续启动）")
     
     async def _create_sources_cache_table(self):
-        """创建订阅源缓存表"""
+        """创建订阅源缓存表（异步，防止阻塞）"""
         try:
-            # 尝试查询表是否存在
-            self.supabase.table("sources_cache").select("id").limit(1).execute()
+            # 🔥 改为异步运行在事件循环中，不阻塞
+            await asyncio.get_event_loop().run_in_executor(None, lambda: self.supabase.table("sources_cache").select("id").limit(1).execute())
             logger.debug("✅ sources_cache 表已存在")
         except Exception as e:
             if "does not exist" in str(e) or "404" in str(e):
-                logger.info("📝 创建 sources_cache 表...")
-                # 这里实际上无法直接创建表，需要在 Supabase 控制面板手动创建
-                # 或者使用 SQL 执行器
-                # 表结构如下：
-                # CREATE TABLE sources_cache (
-                #   id BIGINT PRIMARY KEY,
-                #   source_url VARCHAR(500) UNIQUE,
-                #   content TEXT,
-                #   node_count INT,
-                #   last_fetched_at TIMESTAMP,
-                #   ttl_hours INT DEFAULT 6,
-                #   created_at TIMESTAMP,
-                #   updated_at TIMESTAMP
-                # )
-                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 sources_cache 表")
+                logger.info("📝 sources_cache 表不存在（需要手动创建）")
             else:
-                raise e
+                logger.debug(f"⚠️ 检查 sources_cache 失败: {e}")
     
     async def _create_parsed_nodes_table(self):
-        """创建解析节点缓存表"""
+        """创建解析节点缓存表（异步，防止阻塞）"""
         try:
-            self.supabase.table("parsed_nodes").select("id").limit(1).execute()
+            # 🔥 改为异步运行，不阻塞
+            await asyncio.get_event_loop().run_in_executor(None, lambda: self.supabase.table("parsed_nodes").select("id").limit(1).execute())
             logger.debug("✅ parsed_nodes 表已存在")
         except Exception as e:
             if "does not exist" in str(e) or "404" in str(e):
-                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 parsed_nodes 表")
-                # CREATE TABLE parsed_nodes (
-                #   id BIGINT PRIMARY KEY,
-                #   host VARCHAR(255),
-                #   port INT,
-                #   name VARCHAR(255),
-                #   protocol VARCHAR(50),
-                #   full_content TEXT,
-                #   source_url VARCHAR(500),
-                #   parsed_at TIMESTAMP,
-                #   created_at TIMESTAMP,
-                #   updated_at TIMESTAMP,
-                #   UNIQUE(host, port)
-                # )
+                logger.info("📝 parsed_nodes 表不存在（需要手动创建）")
+            else:
+                logger.debug(f"⚠️ 检查 parsed_nodes 失败: {e}")
             else:
                 raise e
     
     async def _create_testing_queue_table(self):
-        """创建测速队列表"""
+        """创建测速队列表（异步，防止阻塞）"""
         try:
-            self.supabase.table("testing_queue").select("id").limit(1).execute()
+            # 🔥 改为异步运行，不阻塞
+            await asyncio.get_event_loop().run_in_executor(None, lambda: self.supabase.table("testing_queue").select("id").limit(1).execute())
             logger.debug("✅ testing_queue 表已存在")
         except Exception as e:
             if "does not exist" in str(e) or "404" in str(e):
-                logger.warning("⚠️ 请在 Supabase 控制面板手动创建 testing_queue 表")
+                logger.info("📝 testing_queue 表不存在（需要手动创建）")
                 # CREATE TABLE testing_queue (
                 #   id BIGINT PRIMARY KEY,
                 #   group_number INT,
