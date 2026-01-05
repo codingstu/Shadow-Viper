@@ -164,7 +164,7 @@ class NodeHunter:
         self.scheduler = AsyncIOScheduler()
         
         # 🔥 初始化持久化管理器
-        self.persistence = get_persistence()
+        self.persistence_helper = get_persistence()
         
         self._load_nodes_from_file()
 
@@ -247,7 +247,7 @@ class NodeHunter:
                 """后台初始化持久化，不阻塞启动"""
                 try:
                     await asyncio.sleep(2)  # 等待 FastAPI 完全启动（2秒）
-                    await self.persistence.init_persistence_tables()
+                    await self.persistence_helper.init_persistence_tables()
                     self.add_log("✅ 持久化表初始化完成", "SUCCESS")
                     
                     # 🔥 延长到 5 分钟后再启动爬虫，避免启动时 pending 问题
@@ -644,7 +644,7 @@ class NodeHunter:
         
         # 💾 保存源缓存到Supabase
         try:
-            await self.persistence.save_sources_cache(source_node_mapping, source_nodes_map)
+            await self.persistence_helper.save_sources_cache(source_node_mapping, source_nodes_map)
             self.add_log(f"💾 源缓存已保存到Supabase", "SUCCESS")
         except Exception as e:
             self.add_log(f"⚠️ 源缓存保存失败: {e}", "WARNING")
@@ -823,7 +823,7 @@ class NodeHunter:
         
         # 🔥 优先尝试从缓存加载已解析的节点，避免重复扫描
         try:
-            cached_nodes = await self.persistence.load_parsed_nodes()
+            cached_nodes = await self.persistence_helper.load_parsed_nodes()
             if cached_nodes and len(cached_nodes) > 1000:  # 如果缓存有足够的节点（>1000）
                 self.add_log(f"✅ 从缓存加载 {len(cached_nodes)} 个已解析节点，跳过爬虫扫描", "SUCCESS")
                 new_added = self._add_nodes_to_queue(cached_nodes)
@@ -874,7 +874,7 @@ class NodeHunter:
             
             # � 保存已解析节点缓存到Supabase
             try:
-                await self.persistence.save_parsed_nodes(unique_nodes)
+                await self.persistence_helper.save_parsed_nodes(unique_nodes)
                 self.add_log(f"💾 已解析节点缓存已保存到Supabase ({len(unique_nodes)} 个)", "SUCCESS")
             except Exception as e:
                 self.add_log(f"⚠️ 节点缓存保存失败: {e}", "WARNING")
@@ -1370,7 +1370,7 @@ class NodeHunter:
         """
         try:
             self.add_log("🧹 开始清理过期缓存...", "INFO")
-            success = await self.persistence.cleanup_expired_cache()
+            success = await self.persistence_helper.cleanup_expired_cache()
             
             if success:
                 self.add_log("✅ 过期缓存清理完成", "SUCCESS")
@@ -1401,7 +1401,7 @@ class NodeHunter:
                 }
                 for i, node in enumerate(nodes_to_test)
             ]
-            await self.persistence.save_testing_queue(queue_data)
+            await self.persistence_helper.save_testing_queue(queue_data)
             self.add_log(f"💾 测速队列已保存到Supabase ({len(nodes_to_test)} 个节点)", "SUCCESS")
         except Exception as e:
             self.add_log(f"⚠️ 测速队列保存失败: {e}", "WARNING")
@@ -1807,7 +1807,7 @@ class NodeHunter:
         try:
             for node in self.nodes:
                 status = 'passed' if node.get('alive') else 'failed'
-                await self.persistence.update_task_status(
+                await self.persistence_helper.update_task_status(
                     node.get('host'),
                     node.get('port'),
                     status
